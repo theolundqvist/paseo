@@ -41,6 +41,10 @@ export type KeyboardActionId =
   | "workspace.pane.move-tab.right"
   | "workspace.pane.move-tab.up"
   | "workspace.pane.move-tab.down"
+  | "workspace.pane.swap.left"
+  | "workspace.pane.swap.right"
+  | "workspace.pane.swap.up"
+  | "workspace.pane.swap.down"
   | "workspace.pane.close"
   | "workspace.focus.toggle"
   | "workspace.terminal.new"
@@ -99,6 +103,10 @@ export type KeyboardActionDefinition =
   | { id: "workspace.pane.move-tab.right"; scope: KeyboardActionScope }
   | { id: "workspace.pane.move-tab.up"; scope: KeyboardActionScope }
   | { id: "workspace.pane.move-tab.down"; scope: KeyboardActionScope }
+  | { id: "workspace.pane.swap.left"; scope: KeyboardActionScope }
+  | { id: "workspace.pane.swap.right"; scope: KeyboardActionScope }
+  | { id: "workspace.pane.swap.up"; scope: KeyboardActionScope }
+  | { id: "workspace.pane.swap.down"; scope: KeyboardActionScope }
   | { id: "workspace.pane.close"; scope: KeyboardActionScope }
   | { id: "workspace.focus.toggle"; scope: KeyboardActionScope }
   | { id: "workspace.terminal.new"; scope: KeyboardActionScope }

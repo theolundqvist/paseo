@@ -776,7 +776,7 @@ describe("keyboard-shortcut help sections", () => {
     const macDesktop = { isMac: true, isDesktop: true };
     const NEW_WORKSPACE_BINDING = "workspace-new-cmd-n-mac";
     const MAC_INDEX_BINDING = "workspace-navigate-index-cmd-digit-mac";
-    const PANE_FOCUS_LEFT_BINDING = "workspace-pane-focus-left-cmd-shift-left";
+    const PANE_FOCUS_LEFT_BINDING = "workspace-pane-focus-left-cmd-h";
     const SHOW_SHORTCUTS_BINDING = "shortcuts-dialog-toggle-question-mark";
 
     function rowChord(overrides: ShortcutOverrides, id: string) {
@@ -1280,7 +1280,7 @@ describe("plugin Command Center shortcuts", () => {
   const NEXT_NEED = "plugin:needs:next-need";
   const macDesktop = { isMac: true, isDesktop: true };
   const nonMacDesktop = { isMac: false, isDesktop: true };
-  const jEvent = { key: "j", code: "KeyJ" };
+  const yEvent = { key: "y", code: "KeyY" };
 
   function pluginBindings(
     combo: string,
@@ -1295,19 +1295,19 @@ describe("plugin Command Center shortcuts", () => {
 
   it("resolves Mod to Cmd on mac and Ctrl elsewhere", () => {
     const onMac = resolveShortcut({
-      event: { ...jEvent, metaKey: true },
+      event: { ...yEvent, metaKey: true },
       context: macDesktop,
-      bindings: pluginBindings("Mod+J", macDesktop),
+      bindings: pluginBindings("Mod+Y", macDesktop),
     });
     const ctrlOnMac = resolveShortcut({
-      event: { ...jEvent, ctrlKey: true },
+      event: { ...yEvent, ctrlKey: true },
       context: macDesktop,
-      bindings: pluginBindings("Mod+J", macDesktop),
+      bindings: pluginBindings("Mod+Y", macDesktop),
     });
     const onLinux = resolveShortcut({
-      event: { ...jEvent, ctrlKey: true },
+      event: { ...yEvent, ctrlKey: true },
       context: nonMacDesktop,
-      bindings: pluginBindings("Mod+J", nonMacDesktop),
+      bindings: pluginBindings("Mod+Y", nonMacDesktop),
     });
 
     expect(onMac.match?.action).toBe("plugin.command-center-item");
@@ -1332,10 +1332,10 @@ describe("plugin Command Center shortcuts", () => {
   });
 
   it("fires the user's override instead of the plugin's chord", () => {
-    const bindings = pluginBindings("Mod+J", macDesktop, { [NEXT_NEED]: "Alt+K" });
+    const bindings = pluginBindings("Mod+Y", macDesktop, { [NEXT_NEED]: "Alt+K" });
 
     expect(
-      resolveShortcut({ event: { ...jEvent, metaKey: true }, context: macDesktop, bindings }).match,
+      resolveShortcut({ event: { ...yEvent, metaKey: true }, context: macDesktop, bindings }).match,
     ).toBeNull();
     expect(
       resolveShortcut({

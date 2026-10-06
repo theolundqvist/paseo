@@ -2071,6 +2071,30 @@ export function moveTabToPaneInLayout(input: MoveTabToPaneInLayoutInput): Worksp
   });
 }
 
+export function swapPanesInLayout(input: {
+  layout: WorkspaceLayout;
+  paneId: string;
+  withPaneId: string;
+}): WorkspaceLayout | null {
+  const layout = asInternalLayout(input.layout);
+  const panePath = findPanePathById(layout.root, input.paneId);
+  const otherPath = findPanePathById(layout.root, input.withPaneId);
+  if (!panePath || !otherPath || input.paneId === input.withPaneId) {
+    return null;
+  }
+  const paneNode = getNodeAtPath(layout.root, panePath);
+  const otherNode = getNodeAtPath(layout.root, otherPath);
+  return withNormalizedParentTabMap({
+    root: replaceNodeAtPath(
+      replaceNodeAtPath(layout.root, panePath, () => otherNode),
+      otherPath,
+      () => paneNode,
+    ),
+    focusedPaneId: input.paneId,
+    parentTabIdByTabId: input.layout.parentTabIdByTabId,
+  });
+}
+
 export function focusPaneInLayout(input: FocusPaneInLayoutInput): WorkspaceLayout | null {
   const pane = findPaneById(input.layout.root, input.paneId);
   if (!pane) {

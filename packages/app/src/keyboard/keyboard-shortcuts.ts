@@ -203,6 +203,10 @@ export const SHORTCUT_HELP_ROW_ORDER: Record<ShortcutSectionId, readonly string[
     "workspace-pane-move-tab-right",
     "workspace-pane-move-tab-up",
     "workspace-pane-move-tab-down",
+    "workspace-pane-swap-left",
+    "workspace-pane-swap-right",
+    "workspace-pane-swap-up",
+    "workspace-pane-swap-down",
     "workspace-pane-close",
   ],
   layout: ["toggle-left-sidebar", "toggle-right-sidebar", "toggle-both-sidebars", "toggle-focus"],
@@ -244,6 +248,10 @@ const SHORTCUT_HELP_LABEL_KEYS: Record<string, string> = {
   "workspace-pane-move-tab-right": "settings.shortcuts.help.moveTabRight",
   "workspace-pane-move-tab-up": "settings.shortcuts.help.moveTabUp",
   "workspace-pane-move-tab-down": "settings.shortcuts.help.moveTabDown",
+  "workspace-pane-swap-left": "settings.shortcuts.help.swapPaneLeft",
+  "workspace-pane-swap-right": "settings.shortcuts.help.swapPaneRight",
+  "workspace-pane-swap-up": "settings.shortcuts.help.swapPaneUp",
+  "workspace-pane-swap-down": "settings.shortcuts.help.swapPaneDown",
   "workspace-pane-close": "settings.shortcuts.help.closePane",
   "workspace-terminal-new": "settings.shortcuts.help.newTerminal",
   "search-files": "settings.shortcuts.help.searchFiles",
@@ -797,6 +805,50 @@ const SHORTCUT_BINDINGS: readonly ShortcutBinding[] = [
     },
   },
   {
+    id: "workspace-pane-focus-left-cmd-h",
+    action: "workspace.pane.focus.left",
+    combo: "Cmd+H",
+    when: { mac: true, commandCenter: false },
+    help: {
+      id: "workspace-pane-focus-left",
+      section: "tabs-panes",
+      label: "Focus pane left",
+    },
+  },
+  {
+    id: "workspace-pane-focus-down-cmd-j",
+    action: "workspace.pane.focus.down",
+    combo: "Cmd+J",
+    when: { mac: true, commandCenter: false },
+    help: {
+      id: "workspace-pane-focus-down",
+      section: "tabs-panes",
+      label: "Focus pane down",
+    },
+  },
+  {
+    id: "workspace-pane-focus-up-cmd-k",
+    action: "workspace.pane.focus.up",
+    combo: "Cmd+K",
+    when: { mac: true, commandCenter: false },
+    help: {
+      id: "workspace-pane-focus-up",
+      section: "tabs-panes",
+      label: "Focus pane up",
+    },
+  },
+  {
+    id: "workspace-pane-focus-right-cmd-l",
+    action: "workspace.pane.focus.right",
+    combo: "Cmd+L",
+    when: { mac: true, commandCenter: false },
+    help: {
+      id: "workspace-pane-focus-right",
+      section: "tabs-panes",
+      label: "Focus pane right",
+    },
+  },
+  {
     id: "workspace-pane-focus-left-cmd-shift-left",
     action: "workspace.pane.focus.left",
     combo: "Cmd+Shift+ArrowLeft",
@@ -885,6 +937,50 @@ const SHORTCUT_BINDINGS: readonly ShortcutBinding[] = [
     },
   },
   {
+    id: "workspace-pane-swap-left-cmd-shift-h",
+    action: "workspace.pane.swap.left",
+    combo: "Cmd+Shift+H",
+    when: { mac: true, commandCenter: false },
+    help: {
+      id: "workspace-pane-swap-left",
+      section: "tabs-panes",
+      label: "Swap pane left",
+    },
+  },
+  {
+    id: "workspace-pane-swap-down-cmd-shift-j",
+    action: "workspace.pane.swap.down",
+    combo: "Cmd+Shift+J",
+    when: { mac: true, commandCenter: false },
+    help: {
+      id: "workspace-pane-swap-down",
+      section: "tabs-panes",
+      label: "Swap pane down",
+    },
+  },
+  {
+    id: "workspace-pane-swap-up-cmd-shift-k",
+    action: "workspace.pane.swap.up",
+    combo: "Cmd+Shift+K",
+    when: { mac: true, commandCenter: false },
+    help: {
+      id: "workspace-pane-swap-up",
+      section: "tabs-panes",
+      label: "Swap pane up",
+    },
+  },
+  {
+    id: "workspace-pane-swap-right-cmd-shift-l",
+    action: "workspace.pane.swap.right",
+    combo: "Cmd+Shift+L",
+    when: { mac: true, commandCenter: false },
+    help: {
+      id: "workspace-pane-swap-right",
+      section: "tabs-panes",
+      label: "Swap pane right",
+    },
+  },
+  {
     id: "workspace-pane-close-cmd-shift-w",
     action: "workspace.pane.close",
     combo: "Cmd+Shift+W",
@@ -921,9 +1017,9 @@ const SHORTCUT_BINDINGS: readonly ShortcutBinding[] = [
 
   // --- Command center ---
   {
-    id: "command-center-toggle-cmd-k-mac",
+    id: "command-center-toggle-cmd-semicolon-mac",
     action: "command-center.toggle",
-    combo: "Cmd+K",
+    combo: "Cmd+;",
     when: { mac: true },
     help: {
       id: "toggle-command-center",
@@ -1109,9 +1205,9 @@ const SHORTCUT_BINDINGS: readonly ShortcutBinding[] = [
 
   // --- Message input ---
   {
-    id: "message-input-focus-cmd-l-mac",
+    id: "message-input-focus-cmd-i-mac",
     action: "message-input.action",
-    combo: "Cmd+L",
+    combo: "Cmd+I",
     when: { mac: true, commandCenter: false },
     payload: { type: "message-input", kind: "focus" },
     help: {

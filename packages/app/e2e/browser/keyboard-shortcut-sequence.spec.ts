@@ -3,11 +3,11 @@ import { expect, test, type Page } from "../support/fixtures";
 // "Toggle command center" recorded as a two-key sequence. Both platform
 // bindings are overridden so the spec does not depend on the host OS.
 const COMMAND_CENTER_SEQUENCE = {
-  "command-center-toggle-cmd-k-mac": "Cmd+K J",
+  "command-center-toggle-cmd-semicolon-mac": "Cmd+; J",
   "command-center-toggle-ctrl-k-non-mac": "Ctrl+K J",
 };
 
-const SEQUENCE_PREFIX = process.platform === "darwin" ? "Meta+K" : "Control+K";
+const SEQUENCE_PREFIX = process.platform === "darwin" ? "Meta+Semicolon" : "Control+K";
 const SEQUENCE_FINAL_KEY = "j";
 
 /** Record the sequence in Settings → Keyboard shortcuts, through its storage. */

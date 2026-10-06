@@ -64,6 +64,10 @@ const PASSTHROUGH_DISPATCH: Record<string, KeyboardActionDefinition> = {
   "workspace.pane.move-tab.right": { id: "workspace.pane.move-tab.right", scope: "workspace" },
   "workspace.pane.move-tab.up": { id: "workspace.pane.move-tab.up", scope: "workspace" },
   "workspace.pane.move-tab.down": { id: "workspace.pane.move-tab.down", scope: "workspace" },
+  "workspace.pane.swap.left": { id: "workspace.pane.swap.left", scope: "workspace" },
+  "workspace.pane.swap.right": { id: "workspace.pane.swap.right", scope: "workspace" },
+  "workspace.pane.swap.up": { id: "workspace.pane.swap.up", scope: "workspace" },
+  "workspace.pane.swap.down": { id: "workspace.pane.swap.down", scope: "workspace" },
   "workspace.pane.close": { id: "workspace.pane.close", scope: "workspace" },
   "view.toggle.focus": { id: "workspace.focus.toggle", scope: "workspace" },
 };

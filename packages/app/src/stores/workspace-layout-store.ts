@@ -50,6 +50,7 @@ import {
   splitWorkspaceRootRightInLayout,
   splitPaneInLayout,
   stripEphemeralTabsFromLayout,
+  swapPanesInLayout,
   type SplitGroup,
   type SplitNode,
   type SplitPane,
@@ -157,6 +158,7 @@ interface WorkspaceLayoutStore {
     },
   ) => string | null;
   moveTabToPane: (workspaceKey: string, tabId: string, toPaneId: string) => void;
+  swapPanes: (workspaceKey: string, paneId: string, withPaneId: string) => void;
   /**
    * Dismisses the pane along with whatever it still holds. The Explorer hides so the
    * user can bring it back; every ordinary pane is removed. Callers own tab teardown
@@ -1347,6 +1349,25 @@ export function createWorkspaceLayoutStore(
                 !findPaneById(normalizedNextLayout.root, rememberedSidePaneId)
                   ? { ...state.sidePaneIdByWorkspace, [normalizedWorkspaceKey]: null }
                   : state.sidePaneIdByWorkspace,
+            };
+          });
+        },
+        swapPanes: (workspaceKey, paneId, withPaneId) => {
+          set((state) => {
+            const layout = getWorkspaceLayout(state.layoutByWorkspace, workspaceKey);
+            const explorerSidebarPaneId = resolveExplorerSidebarPaneId(
+              layout,
+              state.explorerSidebarPaneIdByWorkspace[workspaceKey],
+            );
+            if (paneId === explorerSidebarPaneId || withPaneId === explorerSidebarPaneId) {
+              return state;
+            }
+            const nextLayout = swapPanesInLayout({ layout, paneId, withPaneId });
+            if (!nextLayout) {
+              return state;
+            }
+            return {
+              layoutByWorkspace: { ...state.layoutByWorkspace, [workspaceKey]: nextLayout },
             };
           });
         },

@@ -1864,6 +1864,7 @@ function WorkspaceScreenContent({
   const splitWorkspacePane = useWorkspaceLayoutStore((state) => state.splitPane);
   const splitWorkspacePaneEmpty = useWorkspaceLayoutStore((state) => state.splitPaneEmpty);
   const moveWorkspaceTabToPane = useWorkspaceLayoutStore((state) => state.moveTabToPane);
+  const swapWorkspacePanes = useWorkspaceLayoutStore((state) => state.swapPanes);
   const closeWorkspacePane = useWorkspaceLayoutStore((state) => state.closePane);
   const handleToggleExplorerSidebar = useCallback(() => {
     toggleExplorerSidebar({
@@ -3306,6 +3307,16 @@ function WorkspaceScreenContent({
         return true;
       }
 
+      if (action.id.startsWith("workspace.pane.swap.")) {
+        const direction = parsePaneDirection(action.id);
+        const adjacentPaneId =
+          direction && findAdjacentPane(workspaceLayout.root, focusedPane.id, direction);
+        if (adjacentPaneId) {
+          swapWorkspacePanes(persistenceKey, focusedPane.id, adjacentPaneId);
+        }
+        return true;
+      }
+
       if (action.id === "workspace.pane.close") {
         void handleClosePane(focusedPane.id);
         return true;
@@ -3318,6 +3329,7 @@ function WorkspaceScreenContent({
       handleClosePane,
       handleCreateEmptySplit,
       moveWorkspaceTabToPane,
+      swapWorkspacePanes,
       persistenceKey,
       focusedPaneTabState.activeTabId,
       focusedPaneTabState.pane,
@@ -3436,6 +3448,10 @@ function WorkspaceScreenContent({
       "workspace.pane.move-tab.right",
       "workspace.pane.move-tab.up",
       "workspace.pane.move-tab.down",
+      "workspace.pane.swap.left",
+      "workspace.pane.swap.right",
+      "workspace.pane.swap.up",
+      "workspace.pane.swap.down",
       "workspace.pane.close",
       "workspace.focus.toggle",
     ] as const,

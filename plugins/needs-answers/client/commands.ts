@@ -11,7 +11,7 @@ export function addCommands(client: PluginClientContext, store: AttentionStore):
       icon: "CircleAlert",
       keywords: ["needs", "attention"],
       context: "global",
-      shortcut: "Mod+J",
+      shortcut: "Mod+Y",
       async onSelect({ navigation, focusedAgent }) {
         await store.refresh();
         const { needs } = store.getSnapshot();
@@ -27,7 +27,7 @@ export function addCommands(client: PluginClientContext, store: AttentionStore):
       icon: "CircleCheck",
       keywords: ["needs"],
       context: "agent",
-      shortcut: "Mod+Shift+J",
+      shortcut: "Mod+Shift+Y",
       async onSelect({ agent, rpc }) {
         await rpc(needsClearRpc, { agentId: agent.id });
         await store.refresh();

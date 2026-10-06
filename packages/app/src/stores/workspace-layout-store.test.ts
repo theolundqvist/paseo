@@ -3016,6 +3016,40 @@ describe("workspace-layout-store actions", () => {
     ]);
   });
 
+  it("swapPanes exchanges positions across nested splits and leaves Explorer in place", () => {
+    const workspaceKey = createWorkspaceKey();
+    const store = workspaceLayoutStore.getState();
+    store.openTab({
+      workspaceKey,
+      target: { kind: "file", path: "/repo/worktree/a.ts" },
+      intent: "reveal",
+    });
+    const rightPaneId = store.splitPaneEmpty(workspaceKey, {
+      targetPaneId: "main",
+      position: "right",
+    }) as string;
+    const bottomPaneId = store.splitPaneEmpty(workspaceKey, {
+      targetPaneId: rightPaneId,
+      position: "bottom",
+    }) as string;
+    const explorerSidebarPaneId = store.showExplorerSidebar(workspaceKey) as string;
+    const visiblePanes = () =>
+      collectAllPanes(workspaceLayoutStore.getState().layoutByWorkspace[workspaceKey].root)
+        .map((pane) => pane.id)
+        .filter((id) => id !== explorerSidebarPaneId);
+    expect(visiblePanes()).toEqual(["main", rightPaneId, bottomPaneId]);
+
+    store.swapPanes(workspaceKey, "main", bottomPaneId);
+
+    const layout = workspaceLayoutStore.getState().layoutByWorkspace[workspaceKey];
+    expect(visiblePanes()).toEqual([bottomPaneId, rightPaneId, "main"]);
+    expect(layout.focusedPaneId).toBe("main");
+    expect(findPaneById(layout.root, "main")?.tabIds).toEqual(["file_/repo/worktree/a.ts"]);
+
+    store.swapPanes(workspaceKey, "main", explorerSidebarPaneId);
+    expect(workspaceLayoutStore.getState().layoutByWorkspace[workspaceKey]).toBe(layout);
+  });
+
   it("closeTab cascades group unwrapping when an inner split collapses to a single pane", () => {
     useWorkspaceLayoutIds(
       "78787878-7878-7878-7878-787878787878",
