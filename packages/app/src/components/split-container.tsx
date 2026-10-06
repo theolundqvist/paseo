@@ -302,6 +302,36 @@ const dropCollisionDetection: CollisionDetection = (args) => {
     return paneHits;
   }
 
+  // Over a tab row's empty space nothing is hit; the pane whose drop zone sits directly below the
+  // pointer owns that row, so only its tabs compete instead of the nearest tab in any pane.
+  const pointer = args.pointerCoordinates;
+  if (!pointer) {
+    return closestCenter(args);
+  }
+  let tabRowPaneId: string | null = null;
+  let tabRowPaneGap = Number.POSITIVE_INFINITY;
+  for (const container of args.droppableContainers) {
+    const data = container.data.current;
+    const rect = args.droppableRects.get(container.id);
+    if (!rect || !isSplitPaneDropData(data)) {
+      continue;
+    }
+    const gap = rect.top - pointer.y;
+    if (pointer.x >= rect.left && pointer.x <= rect.right && gap >= 0 && gap < tabRowPaneGap) {
+      tabRowPaneId = data.paneId;
+      tabRowPaneGap = gap;
+    }
+  }
+  if (tabRowPaneId) {
+    return closestCenter({
+      ...args,
+      droppableContainers: args.droppableContainers.filter((container) => {
+        const data = container.data.current;
+        return isWorkspaceTabDragData(data) && data.paneId === tabRowPaneId;
+      }),
+    });
+  }
+
   return closestCenter(args);
 };
 
@@ -886,13 +916,7 @@ function resolveVisibleGroupFlex(
   sizes: number[],
   maximizedPaneId: string | null,
 ): number[] {
-  const visibleTotal = children.reduce(
-    (total, child, index) =>
-      isSplitNodeHiddenForPresentation(child, maximizedPaneId)
-        ? total
-        : total + (sizes[index] ?? 1),
-    0,
-  );
+  const visibleTotal = resolveVisibleSizeTotal(children, sizes, maximizedPaneId);
   if (visibleTotal <= 0) {
     return children.map(() => 0);
   }
@@ -900,6 +924,20 @@ function resolveVisibleGroupFlex(
     isSplitNodeHiddenForPresentation(child, maximizedPaneId)
       ? 0
       : (sizes[index] ?? 1) / visibleTotal,
+  );
+}
+
+function resolveVisibleSizeTotal(
+  children: SplitNode[],
+  sizes: number[],
+  maximizedPaneId: string | null,
+): number {
+  return children.reduce(
+    (total, child, index) =>
+      isSplitNodeHiddenForPresentation(child, maximizedPaneId)
+        ? total
+        : total + (sizes[index] ?? 1),
+    0,
   );
 }
 
@@ -970,10 +1008,17 @@ function SplitNodeView({
   const groupChildren = node.kind === "group" ? node.group.children : EMPTY_SPLIT_NODES;
   const groupSizes =
     storedGroupSizes ?? (node.kind === "group" ? node.group.sizes : EMPTY_SPLIT_SIZES);
+  const visibleSizeTotal = useMemo(
+    () => resolveVisibleSizeTotal(groupChildren, groupSizes, maximizedPaneId),
+    [groupChildren, groupSizes, maximizedPaneId],
+  );
   const visibleFlex = useMemo(
     () => resolveVisibleGroupFlex(groupChildren, groupSizes, maximizedPaneId),
     [groupChildren, groupSizes, maximizedPaneId],
   );
+  // Stored sizes still count hidden children, so the visible ones span less than 1; scale the
+  // pixel span the handle divides by so a drag tracks the pointer after renormalization.
+  const resizeContainerSize = visibleSizeTotal > 0 ? groupContainerSize / visibleSizeTotal : 0;
   const resizeFlex = useSharedValue(visibleFlex);
   useEffect(() => {
     resizeFlex.value = visibleFlex;
@@ -1110,7 +1155,7 @@ function SplitNodeView({
               groupId={node.group.id}
               index={index}
               sizes={groupSizes}
-              containerSize={groupContainerSize}
+              containerSize={resizeContainerSize}
               onPreviewResizeSplit={previewResizeSplit}
               onResizeSplit={onResizeSplit}
             />

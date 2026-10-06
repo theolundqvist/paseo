@@ -3,6 +3,7 @@ import { View, type PointerEvent as RNPointerEvent } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
 import { startResizeHandleDrag, type ResizeHandleDrag } from "@/components/resize-handle-drag";
+import { isWeb } from "@/constants/platform";
 import { useHasFinePointer } from "@/hooks/use-fine-pointer";
 import {
   SIDEBAR_RESIZE_ACTIVATION_OFFSET,
@@ -210,32 +211,37 @@ export function ResizeHandle({
     ],
     [direction, theme.colors.accent],
   );
+  const pointerHitAreaOffset = hitAreaAlignment === "end" ? 0 : -5;
   const hitAreaStyle = useMemo(
     () => [
       styles.hitArea,
       direction === "horizontal" ? styles.hitAreaHorizontal : styles.hitAreaVertical,
       {
         ...(direction === "horizontal"
-          ? { left: hitAreaAlignment === "end" ? 0 : -5 }
-          : { top: hitAreaAlignment === "end" ? 0 : -5 }),
+          ? { left: pointerHitAreaOffset }
+          : { top: pointerHitAreaOffset }),
         cursor: direction === "horizontal" ? "col-resize" : "row-resize",
         touchAction: "none",
       } as object,
     ],
-    [direction, hitAreaAlignment],
+    [direction, pointerHitAreaOffset],
   );
+  // On web the grip is nested inside the full-length pointer strip so its
+  // pointerdown bubbles to the strip; its offset is relative to the strip.
+  const touchHitAreaOffset =
+    (hitAreaAlignment === "end" ? 0 : -12) - (isWeb ? pointerHitAreaOffset : 0);
   const touchHitAreaStyle = useMemo(
     () => [
       styles.touchHitArea,
       direction === "horizontal" ? styles.touchHitAreaHorizontal : styles.touchHitAreaVertical,
       {
         ...(direction === "horizontal"
-          ? { left: hitAreaAlignment === "end" ? 0 : -12 }
-          : { top: hitAreaAlignment === "end" ? 0 : -12 }),
+          ? { left: touchHitAreaOffset }
+          : { top: touchHitAreaOffset }),
         touchAction: "none",
       } as object,
     ],
-    [direction, hitAreaAlignment],
+    [direction, touchHitAreaOffset],
   );
   const touchGripStyle = useMemo(
     () => [
@@ -256,7 +262,7 @@ export function ResizeHandle({
           testID={testID ? `${testID}-highlight` : undefined}
         />
       )}
-      {finePointer ? (
+      {isWeb ? (
         <View
           role="separator"
           aria-orientation={direction === "horizontal" ? "vertical" : "horizontal"}
@@ -264,7 +270,13 @@ export function ResizeHandle({
           onPointerDown={handlePointerDown}
           onPointerEnter={handlePointerEnter}
           onPointerLeave={handlePointerLeave}
-        />
+        >
+          {finePointer ? null : (
+            <View style={touchHitAreaStyle}>
+              <View pointerEvents="none" style={touchGripStyle} />
+            </View>
+          )}
+        </View>
       ) : (
         <GestureDetector gesture={touchGesture}>
           <View
