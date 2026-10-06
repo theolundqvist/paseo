@@ -38,7 +38,6 @@ import { useToast } from "@/contexts/toast-context";
 import { useAgentInputDraft } from "@/composer/draft/input-draft";
 import { useForgeSearchQuery } from "@/git/use-forge-search-query";
 import { useCheckoutStatusQuery } from "@/git/use-status-query";
-import { ensureCheckoutStatus } from "@/git/checkout-status-cache";
 import { useDaemonConfig } from "@/hooks/use-daemon-config";
 import { resolveTerminalProfiles } from "@getpaseo/protocol/terminal-profiles";
 import type { TerminalProfile } from "@getpaseo/protocol/messages";
@@ -77,7 +76,6 @@ import { toErrorMessage } from "@/utils/error-messages";
 import { projectIconPlaceholderLabelFromDisplayName } from "@/utils/project-display-name";
 import {
   getHostProjectSourceDirectory,
-  getHostProjectId,
   getWorktreeSupportForHostProject,
   hostProjectFromRoute,
   hostProjectFromWorkspace,
@@ -104,9 +102,7 @@ import {
   buildPickerOptionData,
   defaultBasePickerItem,
   pickerItemLabel,
-  pickerItemToCheckoutRequest,
   type BranchPickerDetail,
-  type PickerCheckoutRequest,
   type PickerItem,
   type PickerOptionData,
 } from "./new-workspace-picker-item";
@@ -131,6 +127,11 @@ import {
 } from "./workspace/terminals/state";
 import { captureWorkspaceDraftCleanup } from "./new-workspace/background-handoff";
 import { useNewWorkspaceScreenPresence } from "./new-workspace/screen-presence";
+import {
+  createMultiplicityWorkspace,
+  resolveWorktreeCheckoutRequest,
+  type WorkspaceCreationResult,
+} from "./new-workspace/create-workspace";
 
 const ThemedFolderPlus = withUnistyles(FolderPlus);
 const foregroundMutedColorMapping = (theme: Theme) => ({ color: theme.colors.foregroundMuted });
@@ -167,21 +168,6 @@ function isNewWorkspacePending(input: {
   isDraftHandoffActive: boolean;
 }): boolean {
   return input.pendingAction !== null || input.isDraftHandoffActive;
-}
-
-function buildFirstAgentContext(input: {
-  prompt: string;
-  attachments: AgentAttachment[];
-}): { prompt?: string; attachments?: AgentAttachment[] } | undefined {
-  const trimmedPrompt = input.prompt.trim();
-  if (!trimmedPrompt && input.attachments.length === 0) {
-    return undefined;
-  }
-
-  return {
-    ...(trimmedPrompt ? { prompt: trimmedPrompt } : {}),
-    attachments: input.attachments,
-  };
 }
 
 interface NewWorkspaceScreenProps {
@@ -794,68 +780,6 @@ interface WorkspaceDraftSubmissionConfig {
   thinkingOptionId: string | null;
   featureValues: Record<string, unknown> | undefined;
   target: WorkspaceTabTarget;
-}
-
-interface WorkspaceCreationResult {
-  workspace: ReturnType<typeof normalizeWorkspaceDescriptor>;
-  agent?: AgentSnapshotPayload;
-}
-
-async function createMultiplicityWorkspace(input: {
-  idempotencyKey: string;
-  worktreeSlug: string;
-  client: NonNullable<ReturnType<typeof useHostRuntimeClient>>;
-  isolation: "local" | "worktree";
-  project: HostProjectListItem;
-  sourceDirectory: string;
-  checkoutRequest: PickerCheckoutRequest | undefined;
-  withInitialAgent: boolean;
-  agent?: CreateWorkspaceRequestOptions["agent"];
-  onEvent?: (snapshot: CreationSnapshot) => void;
-  prompt: string;
-  attachments: AgentAttachment[];
-  mergeWorkspaces: (
-    serverId: string,
-    workspaces: ReturnType<typeof normalizeWorkspaceDescriptor>[],
-  ) => void;
-  serverId: string;
-  createFailedMessage: string;
-}): Promise<WorkspaceCreationResult> {
-  const projectId = getHostProjectId(input.project, input.serverId);
-  if (!projectId) throw new Error("Project is not available on the selected host");
-  const isWorktree = input.isolation === "worktree";
-  const firstAgentContext = buildFirstAgentContext({
-    prompt: input.prompt,
-    attachments: input.attachments,
-  });
-  const payload = await input.client.createWorkspace({
-    idempotencyKey: input.idempotencyKey,
-    agent: input.agent,
-    onEvent: input.onEvent,
-    source: isWorktree
-      ? {
-          kind: "worktree",
-          cwd: input.sourceDirectory,
-          projectId,
-          worktreeSlug: input.worktreeSlug,
-          ...input.checkoutRequest,
-        }
-      : {
-          kind: "directory",
-          path: input.sourceDirectory,
-          projectId,
-        },
-    ...(firstAgentContext ? { firstAgentContext } : {}),
-  });
-  if (payload.error || !payload.workspace) {
-    throw new Error(payload.error ?? input.createFailedMessage);
-  }
-  const normalizedWorkspace = normalizeWorkspaceDescriptor(payload.workspace);
-  const workspaceForInitialMerge = input.withInitialAgent
-    ? { ...normalizedWorkspace, status: "running" as const, statusEnteredAt: new Date() }
-    : normalizedWorkspace;
-  input.mergeWorkspaces(input.serverId, [workspaceForInitialMerge]);
-  return { workspace: normalizedWorkspace, agent: payload.agent };
 }
 
 interface CreateChatAgentInput {
@@ -2055,18 +1979,14 @@ export function NewWorkspaceScreen({
       }
       const connectedClient = withConnectedClient();
       const createsWorktree = !supportsWorkspaceMultiplicity || effectiveIsolation === "worktree";
-      const checkoutStatusForCreate = createsWorktree
-        ? await ensureCheckoutStatus({
+      const checkoutRequest = createsWorktree
+        ? await resolveWorktreeCheckoutRequest({
             queryClient,
             client: connectedClient,
             serverId: selectedServerId,
-            cwd: selectedSourceDirectory,
+            sourceDirectory: selectedSourceDirectory,
+            selectedItem,
           })
-        : null;
-      const checkoutRequest = checkoutStatusForCreate
-        ? pickerItemToCheckoutRequest(
-            selectedItem ?? defaultBasePickerItem(checkoutStatusForCreate),
-          )
         : undefined;
       const normalizedWorkspace = await createMultiplicityWorkspace({
         idempotencyKey: creationIdentity.draftId,

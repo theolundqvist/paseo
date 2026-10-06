@@ -392,15 +392,21 @@ function DraftPanel() {
   } = usePaneContext();
   const { isInteractive } = usePaneFocus();
   invariant(target.kind === "draft", "DraftPanel requires draft target");
+  const isolation = target.isolation;
 
   const handleCreated = useCallback(
     (agentSnapshot: Parameters<typeof normalizeAgentSnapshot>[0]) => {
       const normalized = normalizeAgentSnapshot(agentSnapshot, serverId);
       const agent = applyLegacyDaemonWorkspaceOwnership({ serverId, agent: normalized });
       getHostRuntimeStore().acceptAgentSnapshot(serverId, agent);
+      const workspaceKey = buildWorkspaceTabPersistenceKey({ serverId, workspaceId });
+      // A worktree agent belongs to the new workspace, so only a pin keeps it in this pane.
+      if (isolation === "worktree" && workspaceKey) {
+        useWorkspaceLayoutStore.getState().pinAgent(workspaceKey, agentSnapshot.id);
+      }
       retargetCurrentTab({ kind: "agent", agentId: agentSnapshot.id });
     },
-    [retargetCurrentTab, serverId],
+    [isolation, retargetCurrentTab, serverId, workspaceId],
   );
 
   return (
@@ -410,6 +416,7 @@ function DraftPanel() {
       tabId={tabId}
       draftId={target.draftId}
       initialSetup={target.setup}
+      isolation={isolation}
       isPaneFocused={isInteractive}
       onOpenWorkspaceFile={openFileInWorkspace}
       onCreated={handleCreated}

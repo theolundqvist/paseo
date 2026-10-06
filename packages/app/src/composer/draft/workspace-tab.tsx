@@ -1,13 +1,16 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Keyboard, ScrollView, StyleSheet as RNStyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 import { StyleSheet } from "react-native-unistyles";
+import { useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { createNameId } from "mnemonic-id";
 import { ComposerDock } from "@/composer/dock";
 import { useContainerWidthBelow } from "@/hooks/use-container-width";
 import invariant from "tiny-invariant";
 import { Composer } from "@/composer";
 import { FileDropZone } from "@/components/file-drop/file-drop-zone";
 import { ComposerImportPill } from "@/composer/draft/import-pill";
+import { ComposerWorktreePill } from "@/composer/draft/worktree-pill";
 import { COMPOSER_PILL_CLEARANCE } from "@/composer/pill-styles";
 import { AgentStreamView } from "@/agent-stream/view";
 import { composerWorkspaceAttachment } from "@/composer/attachments/workspace";
@@ -15,7 +18,7 @@ import { useAgentInputDraft } from "@/composer/draft/input-draft";
 import type { CreateAgentInitialValues } from "@/hooks/use-agent-form-state";
 import { useDraftAgentCreateFlow, type DraftCreateAttempt } from "@/composer/draft/create-flow";
 import { resolveTurnPresentation, TURN_LIVENESS_IDLE } from "@/timeline/turn-liveness";
-import { useHostRuntimeClient } from "@/runtime/host-runtime";
+import { getHostRuntimeStore, useHostRuntimeClient } from "@/runtime/host-runtime";
 import { buildWorkspaceDraftAgentConfig } from "@/screens/workspace/workspace-draft-agent-config";
 import { buildDraftStoreKey } from "@/stores/draft-keys";
 import { useCreateFlowStore } from "@/stores/create-flow-store";
@@ -32,7 +35,10 @@ import {
 } from "@/composer/draft/workspace-tab-core";
 import type { AgentCapabilityFlags } from "@getpaseo/protocol/agent-types";
 import type { AgentSnapshotPayload } from "@getpaseo/protocol/messages";
-import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
+import type {
+  CreateWorkspaceRequestOptions,
+  DaemonClient,
+} from "@getpaseo/client/internal/daemon-client";
 import type { WorkspaceComposerAttachment } from "@/attachments/types";
 import {
   useDraftWorkspaceAttachmentScopeKey,
@@ -48,6 +54,16 @@ import {
 } from "@/workspace-tabs/model";
 import { openWorkspaceChanges } from "@/workspace-tabs/open-supporting-view";
 import { useSettings } from "@/hooks/use-settings";
+import {
+  getHostProjectSourceDirectory,
+  hostProjectFromWorkspace,
+  type HostProjectListItem,
+} from "@/projects/host-projects";
+import {
+  createMultiplicityWorkspace,
+  resolveWorktreeCheckoutRequest,
+} from "@/screens/new-workspace/create-workspace";
+import { getWorkspaceNamingAttachments } from "@/screens/new-workspace-fork-context";
 
 const EMPTY_PENDING_PERMISSIONS = new Map();
 const DRAFT_CAPABILITIES: AgentCapabilityFlags = {
@@ -130,7 +146,53 @@ function resolveDraftModeId(input: {
   return null;
 }
 
+interface DraftWorktreeTarget {
+  project: HostProjectListItem;
+  sourceDirectory: string;
+  worktreeSlug: string;
+  queryClient: QueryClient;
+  createFailedMessage: string;
+}
+
+/** Same creation path as New Workspace: the daemon creates the worktree, then the agent inside it. */
+async function createDraftAgentInWorktree(input: {
+  serverId: string;
+  draftId: string;
+  client: DaemonClient;
+  worktree: DraftWorktreeTarget;
+  agent: NonNullable<CreateWorkspaceRequestOptions["agent"]>;
+}): Promise<AgentSnapshotPayload> {
+  const { worktree } = input;
+  const checkoutRequest = await resolveWorktreeCheckoutRequest({
+    queryClient: worktree.queryClient,
+    client: input.client,
+    serverId: input.serverId,
+    sourceDirectory: worktree.sourceDirectory,
+    selectedItem: null,
+  });
+  const { agent } = await createMultiplicityWorkspace({
+    idempotencyKey: input.draftId,
+    worktreeSlug: worktree.worktreeSlug,
+    client: input.client,
+    isolation: "worktree",
+    project: worktree.project,
+    sourceDirectory: worktree.sourceDirectory,
+    checkoutRequest,
+    withInitialAgent: true,
+    agent: input.agent,
+    prompt: input.agent.initialPrompt ?? "",
+    attachments: getWorkspaceNamingAttachments(input.agent.attachments ?? []),
+    mergeWorkspaces: (serverId, workspaces) =>
+      getHostRuntimeStore().acceptWorkspaceSnapshots(serverId, workspaces),
+    serverId: input.serverId,
+    createFailedMessage: worktree.createFailedMessage,
+  });
+  if (!agent) throw new Error("Workspace creation returned no agent");
+  return agent;
+}
+
 async function submitDraftCreateRequest(input: {
+  serverId: string;
   draftId: string;
   attempt: { clientMessageId: string };
   text: string;
@@ -151,6 +213,7 @@ async function submitDraftCreateRequest(input: {
   };
   hostDisconnectedMessage: string;
   selectModelMessage: string;
+  worktree: DraftWorktreeTarget | null;
 }): Promise<{ agentId: string | null; result: AgentSnapshotPayload }> {
   const {
     attempt,
@@ -192,15 +255,24 @@ async function submitDraftCreateRequest(input: {
 
   const attachmentsArray = Array.isArray(attachments) ? attachments : undefined;
   const imagesData = await encodeImages(images);
-  const options = {
-    idempotencyKey: input.draftId,
+  const agentRequest = {
     config,
-    workspaceId,
     initialPrompt: text,
     clientMessageId: attempt.clientMessageId,
     ...(imagesData && imagesData.length > 0 ? { images: imagesData } : {}),
     ...(attachmentsArray && attachmentsArray.length > 0 ? { attachments: attachmentsArray } : {}),
   };
+  if (input.worktree) {
+    const result = await createDraftAgentInWorktree({
+      serverId: input.serverId,
+      draftId: input.draftId,
+      client,
+      worktree: input.worktree,
+      agent: agentRequest,
+    });
+    return { agentId: result.id, result };
+  }
+  const options = { idempotencyKey: input.draftId, workspaceId, ...agentRequest };
   const creation = useWorkspaceDraftSubmissionStore.getState().creationByDraftId[input.draftId];
   const result = creation ? await creation.retry(options) : await client.createAgent(options);
 
@@ -295,10 +367,39 @@ interface WorkspaceDraftAgentTabProps {
   tabId: string;
   draftId: string;
   initialSetup?: WorkspaceDraftTabSetup;
+  isolation?: "worktree";
   isPaneFocused: boolean;
   onCreated: (snapshot: AgentSnapshotPayload) => void;
   onOpenWorkspaceFile: (request: WorkspaceFileOpenRequest) => void;
   onOpenImportSheet?: () => void;
+}
+
+function useDraftWorktree(input: {
+  serverId: string;
+  workspaceId: string;
+  isolation: "worktree" | undefined;
+  workspaceDirectory: string | null;
+  createFailedMessage: string;
+}): { worktree: DraftWorktreeTarget | null; workingDirectory: string | null } {
+  const { serverId, isolation, workspaceDirectory, createFailedMessage } = input;
+  const queryClient = useQueryClient();
+  const [worktreeSlug] = useState(createNameId);
+  const project = useWorkspaceFields(serverId, input.workspaceId, (w) =>
+    isolation === "worktree" ? hostProjectFromWorkspace({ serverId, workspace: w }) : null,
+  );
+  const sourceDirectory = project ? getHostProjectSourceDirectory(project, serverId) : null;
+  const worktree = useMemo(
+    () =>
+      project && sourceDirectory
+        ? { project, sourceDirectory, worktreeSlug, queryClient, createFailedMessage }
+        : null,
+    [createFailedMessage, project, queryClient, sourceDirectory, worktreeSlug],
+  );
+  if (isolation !== "worktree") {
+    return { worktree: null, workingDirectory: workspaceDirectory };
+  }
+  // The agent starts from the project root; the daemon maps that cwd into the new worktree.
+  return { worktree, workingDirectory: sourceDirectory };
 }
 
 function resolveImportPillPress(
@@ -311,12 +412,33 @@ function resolveImportPillPress(
   return onOpenImportSheet ?? null;
 }
 
+function DraftComposerPills({
+  isWorktree,
+  onImport,
+}: {
+  isWorktree: boolean;
+  onImport: (() => void) | null;
+}) {
+  if (!isWorktree && !onImport) {
+    return null;
+  }
+  return (
+    <View style={styles.pillRow}>
+      <View style={styles.pillRowContent}>
+        {isWorktree ? <ComposerWorktreePill /> : null}
+        {onImport ? <ComposerImportPill onPress={onImport} /> : null}
+      </View>
+    </View>
+  );
+}
+
 export function WorkspaceDraftAgentTab({
   serverId,
   workspaceId,
   tabId,
   draftId,
   initialSetup = undefined,
+  isolation = undefined,
   isPaneFocused,
   onCreated,
   onOpenWorkspaceFile,
@@ -328,10 +450,16 @@ export function WorkspaceDraftAgentTab({
     workspaceDirectory: w.workspaceDirectory,
     id: w.id,
   }));
-  const workspaceDirectory = workspaceFields?.workspaceDirectory || null;
+  const { worktree: draftWorktree, workingDirectory } = useDraftWorktree({
+    serverId,
+    workspaceId,
+    isolation,
+    workspaceDirectory: workspaceFields?.workspaceDirectory || null,
+    createFailedMessage: t("newWorkspace.errors.createWorktreeFailed"),
+  });
   const draftSetup = initialSetup ?? null;
   const draftWorkingDirectory = resolveDraftWorkingDirectory({
-    workspaceDirectory,
+    workspaceDirectory: workingDirectory,
     initialSetup: draftSetup,
   });
   const draftInitialValues = buildDraftInitialValues({
@@ -488,6 +616,7 @@ export function WorkspaceDraftAgentTab({
         return { agentId: result.id, result };
       }
       return submitDraftCreateRequest({
+        serverId,
         draftId,
         attempt,
         text,
@@ -501,6 +630,7 @@ export function WorkspaceDraftAgentTab({
         composerState,
         hostDisconnectedMessage: t("workspace.terminal.hostDisconnected"),
         selectModelMessage: t("workspaceSetup.errors.selectModel"),
+        worktree: draftWorktree,
       });
     },
     onCreateSuccess: ({ result }) => {
@@ -651,13 +781,7 @@ export function WorkspaceDraftAgentTab({
       <ComposerDock>
         {dockContent}
         <View style={animatedStaticStyles.inputAreaWrapper} onLayout={onInputAreaLayout}>
-          {importPillPress ? (
-            <View style={styles.importPillRow}>
-              <View style={styles.importPillContent}>
-                <ComposerImportPill onPress={importPillPress} />
-              </View>
-            </View>
-          ) : null}
+          <DraftComposerPills isWorktree={isolation === "worktree"} onImport={importPillPress} />
           <Composer
             agentId={tabId}
             serverId={serverId}
@@ -718,7 +842,7 @@ const styles = StyleSheet.create((theme) => ({
   configSection: {
     gap: theme.spacing[3],
   },
-  importPillRow: {
+  pillRow: {
     width: "100%",
     paddingHorizontal: theme.spacing[4],
     paddingTop: {
@@ -731,10 +855,11 @@ const styles = StyleSheet.create((theme) => ({
     },
     alignItems: "center",
   },
-  importPillContent: {
+  pillRowContent: {
     width: "100%",
     maxWidth: theme.contentMaxWidth,
     flexDirection: "row",
+    gap: theme.spacing[2],
   },
   errorContainer: {
     marginTop: theme.spacing[2],

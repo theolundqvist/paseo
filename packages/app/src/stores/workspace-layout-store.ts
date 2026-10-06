@@ -169,6 +169,7 @@ interface WorkspaceLayoutStore {
   resizeSplit: (workspaceKey: string, groupId: string, sizes: number[]) => void;
   resizeExplorerSidebar: (workspaceKey: string, width: number) => void;
   reorderTabsInPane: (workspaceKey: string, paneId: string, tabIds: string[]) => void;
+  pinAgent: (workspaceKey: string, agentId: string) => void;
   unpinAgent: (workspaceKey: string, agentId: string) => void;
   hideAgent: (workspaceKey: string, agentId: string) => void;
   unhideAgent: (workspaceKey: string, agentId: string) => void;
@@ -1565,6 +1566,20 @@ export function createWorkspaceLayoutStore(
               },
             };
           });
+        },
+        pinAgent: (workspaceKey, agentId) => {
+          const normalizedWorkspaceKey = trimNonEmpty(workspaceKey);
+          const normalizedAgentId = trimNonEmpty(agentId);
+          if (!normalizedWorkspaceKey || !normalizedAgentId) {
+            return;
+          }
+          set((state) => ({
+            pinnedAgentIdsByWorkspace: addAgentIdToWorkspaceSet(
+              state.pinnedAgentIdsByWorkspace,
+              normalizedWorkspaceKey,
+              normalizedAgentId,
+            ),
+          }));
         },
         unpinAgent: (workspaceKey, agentId) => {
           const normalizedWorkspaceKey = trimNonEmpty(workspaceKey);

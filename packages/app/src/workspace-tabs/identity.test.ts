@@ -17,6 +17,18 @@ describe("New tab identity", () => {
   });
 });
 
+describe("draft tab identity", () => {
+  it("keeps worktree isolation as part of the draft target", () => {
+    const worktreeDraft = { kind: "draft", draftId: "draft-1", isolation: "worktree" } as const;
+    const plainDraft = { kind: "draft", draftId: "draft-1" } as const;
+
+    expect(normalizeWorkspaceTabTarget(worktreeDraft)).toEqual(worktreeDraft);
+    expect(normalizeWorkspaceTabTarget(plainDraft)).toEqual(plainDraft);
+    expect(workspaceTabTargetsEqual(worktreeDraft, worktreeDraft)).toBe(true);
+    expect(workspaceTabTargetsEqual(worktreeDraft, plainDraft)).toBe(false);
+  });
+});
+
 describe("provider subagent tab identity", () => {
   test("normalizes and compares the parent and provider child as one tab identity", () => {
     const target = normalizeWorkspaceTabTarget({

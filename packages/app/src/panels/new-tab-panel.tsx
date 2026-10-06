@@ -9,13 +9,11 @@ import {
 } from "react";
 import { Pressable, ScrollView, Text, View, type PressableStateCallbackType } from "react-native";
 import { useTranslation } from "react-i18next";
-import { router } from "expo-router";
 import { GitBranch, Pencil, Plus } from "lucide-react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { TerminalProfileIcon } from "@/components/terminal-profile-icon";
 import { Shortcut } from "@/components/ui/shortcut";
 import { isWeb } from "@/constants/platform";
-import { useFormPreferences } from "@/hooks/use-form-preferences";
 import { useKeyboardActionHandler } from "@/hooks/use-keyboard-action-handler";
 import { useStableEvent } from "@/hooks/use-stable-event";
 import type { KeyboardActionDefinition } from "@/keyboard/keyboard-action-dispatcher";
@@ -30,8 +28,7 @@ import {
   type WorkspaceTabLaunchGroup,
   type WorkspaceTabLaunchItem,
 } from "@/workspace-tabs/launcher";
-import { buildNewWorkspaceRoute } from "@/utils/host-routes";
-import { CHAT_LAUNCH_TARGET } from "@/new-workspace-launch/target";
+import { generateDraftId } from "@/stores/draft-keys";
 
 const ThemedPlus = withUnistyles(Plus);
 const ThemedPencil = withUnistyles(Pencil);
@@ -180,13 +177,12 @@ function useNewTabDescriptor() {
 
 const NewTabPanel = memo(function NewTabPanel(): ReactElement {
   const { t } = useTranslation();
-  const { host, serverId, workspaceId, tabId, closeCurrentTab } = usePaneContext();
+  const { host, serverId, workspaceId, tabId, closeCurrentTab, retargetCurrentTab } =
+    usePaneContext();
   const { isInteractive, focusPane } = usePaneFocus();
   const containerRef = useRef<View | null>(null);
   const keyboardActionDispatcher = useKeyboardActionDispatcher();
-  const { updatePreferences } = useFormPreferences();
-  const workspace = useWorkspace(serverId, workspaceId);
-  const gitWorkspace = workspace?.projectKind === "git" ? workspace : null;
+  const isGitWorkspace = useWorkspace(serverId, workspaceId)?.projectKind === "git";
   const isOnlyTabInPane = useWorkspaceLayoutStore((state) => {
     const layout = state.layoutByWorkspace[`${serverId}:${workspaceId}`];
     if (!layout) return false;
@@ -200,25 +196,17 @@ const NewTabPanel = memo(function NewTabPanel(): ReactElement {
     surface: "panel",
   });
   const groups = useMemo(() => {
-    if (host !== "main" || !gitWorkspace) return catalogGroups;
+    if (host !== "main" || !isGitWorkspace) return catalogGroups;
     return withItemAfterAgent(catalogGroups, {
       id: WORKTREE_AGENT_ITEM_ID,
       label: t("workspace.tabs.actions.newAgentInWorktree"),
       Icon: GitBranch,
       disabled: false,
       panelKind: "draft",
-      launch: async () => {
-        await updatePreferences({ isolation: "worktree", launchTarget: CHAT_LAUNCH_TARGET });
-        router.navigate(
-          buildNewWorkspaceRoute({
-            serverId,
-            sourceDirectory: gitWorkspace.projectRootPath,
-            projectId: gitWorkspace.projectId,
-          }) as never,
-        );
-      },
+      launch: () =>
+        retargetCurrentTab({ kind: "draft", draftId: generateDraftId(), isolation: "worktree" }),
     });
-  }, [catalogGroups, gitWorkspace, host, serverId, t, updatePreferences]);
+  }, [catalogGroups, host, isGitWorkspace, retargetCurrentTab, t]);
   const itemsById = useMemo(
     () => new Map(groups.flatMap((group) => group.items).map((item) => [item.id, item])),
     [groups],

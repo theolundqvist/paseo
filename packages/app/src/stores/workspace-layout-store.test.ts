@@ -3962,6 +3962,43 @@ describe("workspace-layout-store actions", () => {
     ).toEqual(["agent_archived-agent"]);
   });
 
+  it("keeps a pinned agent from another workspace in the slot its draft occupied", () => {
+    const workspaceKey = createWorkspaceKey();
+    const store = workspaceLayoutStore.getState();
+    const draftTabId = store.openTab({
+      workspaceKey,
+      target: { kind: "draft", draftId: "draft-worktree", isolation: "worktree" },
+      intent: "new",
+    })!;
+    const reconcileWithoutLocalAgents = () =>
+      store.reconcileTabs(workspaceKey, {
+        agentsHydrated: true,
+        terminalsHydrated: true,
+        activeAgentIds: [],
+        autoOpenAgentIds: [],
+        standaloneTerminalIds: [],
+      });
+
+    store.pinAgent(workspaceKey, "worktree-agent");
+    const agentTabId = store.replaceTab(workspaceKey, draftTabId, {
+      kind: "agent",
+      agentId: "worktree-agent",
+    });
+    reconcileWithoutLocalAgents();
+    reconcileWithoutLocalAgents();
+
+    const pane = collectAllPanes(
+      workspaceLayoutStore.getState().layoutByWorkspace[workspaceKey].root,
+    ).find((candidate) => candidate.tabIds.includes(agentTabId!));
+    expect(pane?.tabIds).toEqual([agentTabId]);
+    expect(
+      store
+        .getWorkspaceTabs(workspaceKey)
+        .map((tab) => tab.target)
+        .filter((target) => target.kind === "agent" || target.kind === "draft"),
+    ).toEqual([{ kind: "agent", agentId: "worktree-agent" }]);
+  });
+
   it("restores the selected historical agent before any server data or cache is available", async () => {
     const workspaceKey = createWorkspaceKey();
     workspaceLayoutStore.getState().openTab({

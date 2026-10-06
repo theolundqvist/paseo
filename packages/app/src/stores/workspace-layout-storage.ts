@@ -15,6 +15,7 @@ const WorkspaceTabTargetStorageSchema = z.discriminatedUnion("kind", [
     kind: z.literal("draft"),
     draftId: z.string(),
     setup: WorkspaceDraftTabSetupStorageSchema.optional(),
+    isolation: z.literal("worktree").optional(),
   }),
   z.strictObject({ kind: z.literal("agent"), agentId: z.string() }),
   z.strictObject({
