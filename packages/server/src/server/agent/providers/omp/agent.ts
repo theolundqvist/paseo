@@ -2510,12 +2510,22 @@ export class OmpAgentClient implements AgentClient {
       });
       if (!runtimeSession) throw new Error("OMP catalog runtime did not start");
       const catalogSession = runtimeSession;
+      const ompModels = await runProviderRefreshActivity(context, "get_available_models", () =>
+        catalogSession.getAvailableModels(null),
+      );
+      const { model: configuredModel } = await runProviderRefreshActivity(
+        context,
+        "get_state",
+        () => catalogSession.getState(),
+      );
       const models = transformOmpModels(
-        (
-          await runProviderRefreshActivity(context, "get_available_models", () =>
-            catalogSession.getAvailableModels(null),
-          )
-        ).map((model) => mapOmpModel(model, this.provider)),
+        ompModels.map((model) => {
+          const mapped = mapOmpModel(model, this.provider);
+          if (model.provider === configuredModel?.provider && model.id === configuredModel?.id) {
+            mapped.isDefault = true;
+          }
+          return mapped;
+        }),
       );
       return { models, modes: [...OMP_MODES] };
     } finally {

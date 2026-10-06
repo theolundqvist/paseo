@@ -69,6 +69,26 @@ test("OMP import uses the runtime's custom agent directory without a configured 
     expect.objectContaining({ providerHandleId: sessionFile }),
   ]);
 });
+test("OMP marks the model OMP resolves from its own settings as the catalog default", async () => {
+  const runtime = new FakeOmp();
+  const unconfigured = { provider: "anthropic", id: "claude-3-5-sonnet-20240620" };
+  const configured = { provider: "anthropic", id: "claude-opus-5-5" };
+  runtime.queueSessionSetup((session) => {
+    session.models = [unconfigured, configured];
+    session.state = { ...session.state, model: configured };
+  });
+  const client = new OmpAgentClient({ logger: createTestLogger(), runtime });
+
+  const catalog = await client.fetchCatalog({
+    scope: "workspace",
+    cwd: "/workspace/project",
+    force: false,
+  });
+
+  expect(catalog.models.filter((model) => model.isDefault).map((model) => model.id)).toEqual([
+    "anthropic/claude-opus-5-5",
+  ]);
+});
 test("OMP resumes a session whose model was removed on the model OMP falls back to", async () => {
   const runtime = new FakeOmp();
   runtime.removeModel("9router/deepseek-v4-flash");
