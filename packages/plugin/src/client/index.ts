@@ -1,5 +1,6 @@
 export type {
   PluginHostProps,
+  PluginHostNavigation,
   PluginSurfaceProps,
   PluginScreenProps,
   PluginPopoverProps,

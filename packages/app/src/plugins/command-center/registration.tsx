@@ -1,5 +1,5 @@
 import { usePathname } from "expo-router";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { useCommandCenterActions } from "@/command-center/provider";
 import { useToast } from "@/contexts/toast-context";
 import { useHostRuntimeClient } from "@/runtime/host-runtime";
@@ -14,6 +14,7 @@ import { useInstalledPlugins } from "../registry";
 import { buildPluginCommandCenterContributions } from "./contributions";
 import { getFocusedAgentId } from "./context";
 import { createPluginNavigation } from "../navigation";
+import { usePluginShortcutsStore, type PluginShortcut } from "@/keyboard/plugin-shortcuts";
 
 export function PluginCommandCenterActions() {
   const pathname = usePathname();
@@ -77,5 +78,25 @@ export function PluginCommandCenterActions() {
     enabled: Boolean(client && plugins.length > 0),
     actions,
   });
+
+  useEffect(() => {
+    const actionsById = new Map(actions.map((action) => [action.id, action]));
+    const shortcuts: PluginShortcut[] = [];
+    const runners = new Map<string, () => void>();
+    for (const plugin of plugins) {
+      for (const item of plugin.commandCenterItems) {
+        if (!item.shortcut) continue;
+        const bindingId = `plugin:${plugin.id}:${item.id}`;
+        shortcuts.push({ bindingId, title: item.title, combo: item.shortcut });
+        const action = actionsById.get(`${plugin.id}:${item.id}`);
+        if (action) runners.set(bindingId, () => void action.run());
+      }
+    }
+    usePluginShortcutsStore.setState({ shortcuts, runners });
+  }, [actions, plugins]);
+  useEffect(
+    () => () => usePluginShortcutsStore.setState({ shortcuts: [], runners: new Map() }),
+    [],
+  );
   return null;
 }

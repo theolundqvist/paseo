@@ -1699,28 +1699,33 @@ client.addCommandCenterItem({
 
 `addCommandCenterItem` fields:
 
-| Field      | Required | Meaning                                        |
-| ---------- | -------- | ---------------------------------------------- |
-| `id`       | Yes      | Plugin-local item ID.                          |
-| `title`    | Yes      | Search result title.                           |
-| `icon`     | Yes      | Lucide icon name.                              |
-| `keywords` | No       | Additional Command Center search terms.        |
-| `context`  | Yes      | `global`, `workspace`, or `agent`.             |
-| `onSelect` | Yes      | Client-side callback for the matching context. |
+| Field      | Required | Meaning                                                                                           |
+| ---------- | -------- | ------------------------------------------------------------------------------------------------- |
+| `id`       | Yes      | Plugin-local item ID.                                                                             |
+| `title`    | Yes      | Search result title.                                                                              |
+| `icon`     | Yes      | Lucide icon name.                                                                                 |
+| `keywords` | No       | Additional Command Center search terms.                                                           |
+| `context`  | Yes      | `global`, `workspace`, or `agent`.                                                                |
+| `shortcut` | No       | Default keyboard chord such as `"Mod+J"` or `"Alt+G Alt+J"`. `Mod` is ⌘ on macOS, Ctrl elsewhere. |
+| `onSelect` | Yes      | Client-side callback for the matching context.                                                    |
 
 Global items appear on the installation's selected host. Workspace items appear only when that host has an active cached workspace. Agent items appear only when the focused workspace tab is an agent or an agent-context plugin panel whose cached record belongs to that workspace. Missing context removes the item rather than calling the plugin to discover it.
 
+A `shortcut` runs the same callback with the same context as selecting the item. While the item's context is missing, the chord does nothing. Shortcuts are listed under **Plugins** in Settings > Shortcuts and the keyboard shortcuts dialog, where users can rebind or unassign them; overrides are keyed `plugin:<pluginId>:<itemId>`. A chord already claimed by a built-in shortcut, or by an earlier plugin item, stays with that owner: the plugin chord is dropped and a warning is logged. Ctrl chords do not fire inside terminals, and a chord without ⌘, Ctrl, or Alt fires only when focus is outside text fields and terminals. An unparseable `shortcut` throws from `addCommandCenterItem`.
+
 Every callback receives:
 
-| Field                     | Context             | Meaning                                                                                                         |
-| ------------------------- | ------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `context`                 | All                 | Matching discriminator.                                                                                         |
-| `paseo`                   | All                 | Selected host's existing `PaseoApi`.                                                                            |
-| `rpc(contract, input)`    | All                 | Typed call to this installation's daemon-side plugin handler.                                                   |
-| `openScreen(input)`       | All                 | Opens one of this plugin's registered screens: `{ screenId, params? }`.                                         |
-| `workspace`               | Workspace and agent | Synchronous workspace snapshot.                                                                                 |
-| `agent`                   | Agent               | Synchronous matching agent snapshot.                                                                            |
-| `openPanel(id, options?)` | Workspace and agent | Opens a registered panel in the callback's current context. Pass `{ location: "explorer" }` to target Explorer. |
+| Field                     | Context             | Meaning                                                                                                                                                                  |
+| ------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `context`                 | All                 | Matching discriminator.                                                                                                                                                  |
+| `paseo`                   | All                 | Selected host's existing `PaseoApi`.                                                                                                                                     |
+| `rpc(contract, input)`    | All                 | Typed call to this installation's daemon-side plugin handler.                                                                                                            |
+| `openScreen(input)`       | All                 | Opens one of this plugin's registered screens: `{ screenId, params? }`.                                                                                                  |
+| `navigation`              | All                 | Host navigation: `openAgent({ agentId, serverId? })`, `openWorkspace({ workspaceId, serverId? })`, and `openBrowser` on Electron. See the `navigation` prop of surfaces. |
+| `focusedAgent`            | Global              | `{ id, workspaceId }` when the focused workspace tab is an agent; otherwise absent.                                                                                      |
+| `workspace`               | Workspace and agent | Synchronous workspace snapshot.                                                                                                                                          |
+| `agent`                   | Agent               | Synchronous matching agent snapshot.                                                                                                                                     |
+| `openPanel(id, options?)` | Workspace and agent | Opens a registered panel in the callback's current context. Pass `{ location: "explorer" }` to target Explorer.                                                          |
 
 An agent callback may open either an agent panel or a workspace panel. A workspace callback may open only a workspace panel. Unknown screen and panel IDs fail visibly. Use `paseo` for normal workspace, agent, provider, and daemon-config operations. Use `rpc` for plugin-specific filesystem, credential, vendor, or daemon-local work.
 

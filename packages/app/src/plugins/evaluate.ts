@@ -11,6 +11,7 @@ import * as ReactNative from "react-native";
 // eslint-disable-next-line no-restricted-imports -- plugin bundles receive TanStack's real runtime, not Paseo's query wrappers.
 import * as ReactQuery from "@tanstack/react-query";
 import * as Zod from "zod";
+import { parseChordString } from "@/keyboard/shortcut-string";
 import {
   type PluginAttachmentSourceContribution,
   type PluginCleanup,
@@ -306,6 +307,18 @@ export function runPluginClientBundle(
         throw new Error(`Command Center item ${normalizedId} has no callback`);
       }
       resolvePluginIcon(icon);
+      const shortcut = contribution.shortcut?.trim();
+      if (contribution.shortcut !== undefined) {
+        const invalid = new Error(
+          `Command Center item ${normalizedId} has invalid shortcut: ${contribution.shortcut}`,
+        );
+        if (!shortcut) throw invalid;
+        try {
+          parseChordString(shortcut);
+        } catch {
+          throw invalid;
+        }
+      }
       commandCenterItemIds.add(normalizedId);
       return register(
         collector.commandCenterItems,
@@ -315,6 +328,7 @@ export function runPluginClientBundle(
           title,
           icon,
           keywords: contribution.keywords?.map((keyword) => keyword.trim()).filter(Boolean),
+          shortcut,
         },
         () => commandCenterItemIds.delete(normalizedId),
       );

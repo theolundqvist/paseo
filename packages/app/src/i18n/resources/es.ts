@@ -657,6 +657,7 @@ export const es: TranslationResources = {
       actions: {
         newTab: "Nueva pestaña",
         newAgent: "Nuevo agente",
+        newAgentInWorktree: "Agente en un nuevo worktree",
         newTerminal: "Nueva terminal",
         preparingTerminal: "Preparando la pestaña del terminal",
         preparingTerminalTooltip: "Preparando terminal...",
@@ -2373,6 +2374,7 @@ export const es: TranslationResources = {
         tabsPanes: "Pestañas y paneles",
         layout: "Diseño",
         agentInput: "EntradaAgent",
+        plugins: "Plugins",
       },
       help: {
         openProject: "Abrir proyecto",

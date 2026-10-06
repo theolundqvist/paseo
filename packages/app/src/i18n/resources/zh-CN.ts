@@ -650,6 +650,7 @@ export const zhCN: TranslationResources = {
       actions: {
         newTab: "新建标签页",
         newAgent: "新建 Agent",
+        newAgentInWorktree: "在新 worktree 中启动 Agent",
         newTerminal: "新建 Terminal",
         preparingTerminal: "正在准备 Terminal 标签",
         preparingTerminalTooltip: "正在准备 Terminal...",
@@ -2291,6 +2292,7 @@ export const zhCN: TranslationResources = {
         tabsPanes: "标签和窗格",
         layout: "布局",
         agentInput: "Agent 输入",
+        plugins: "插件",
       },
       help: {
         openProject: "打开项目",

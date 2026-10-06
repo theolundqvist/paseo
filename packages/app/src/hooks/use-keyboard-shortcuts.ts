@@ -41,6 +41,7 @@ import {
   useActiveWorkspaceSelection,
 } from "@/stores/navigation-active-workspace-store";
 import { dispatchTopWebOverlayKeyDown } from "@/lib/overlay-root";
+import { runPluginShortcut, usePluginShortcutsStore } from "@/keyboard/plugin-shortcuts";
 
 export function useKeyboardShortcuts({
   enabled,
@@ -64,10 +65,19 @@ export function useKeyboardShortcuts({
   const router = useRouter();
   const resetModifiers = useKeyboardShortcutsStore((s) => s.resetModifiers);
   const { overrides } = useKeyboardShortcutOverrides();
-  const bindings = useMemo(() => buildEffectiveBindings(overrides), [overrides]);
+  const pluginShortcuts = usePluginShortcutsStore((s) => s.shortcuts);
   const shortcutsAvailable = keyboardShortcutsAvailable({ isNative, isCompact: isMobile });
   const isDesktopApp = getIsElectronRuntime();
   const isMac = getShortcutOs() === "mac";
+  const pluginRunners = usePluginShortcutsStore((s) => s.runners);
+  const bindings = useMemo(
+    () =>
+      buildEffectiveBindings(overrides, {
+        shortcuts: pluginShortcuts.filter((shortcut) => pluginRunners.has(shortcut.bindingId)),
+        platform: { isMac, isDesktop: isDesktopApp },
+      }),
+    [isDesktopApp, isMac, overrides, pluginRunners, pluginShortcuts],
+  );
   const chordStateRef = useRef<ChordState>({
     candidateIndices: [],
     step: 0,
@@ -211,6 +221,8 @@ export function useKeyboardShortcuts({
       case "shortcuts-dialog-toggle":
         useKeyboardShortcutsStore.getState().setShortcutsDialogOpen(action.nextOpen);
         return true;
+      case "plugin-command":
+        return runPluginShortcut(action.bindingId);
     }
   };
 

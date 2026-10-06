@@ -9,21 +9,29 @@ import {
 } from "react";
 import { Pressable, ScrollView, Text, View, type PressableStateCallbackType } from "react-native";
 import { useTranslation } from "react-i18next";
-import { Pencil, Plus } from "lucide-react-native";
+import { router } from "expo-router";
+import { GitBranch, Pencil, Plus } from "lucide-react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { TerminalProfileIcon } from "@/components/terminal-profile-icon";
 import { Shortcut } from "@/components/ui/shortcut";
 import { isWeb } from "@/constants/platform";
-import { useShortcutKeys } from "@/hooks/use-shortcut-keys";
+import { useFormPreferences } from "@/hooks/use-form-preferences";
 import { useKeyboardActionHandler } from "@/hooks/use-keyboard-action-handler";
+import { useStableEvent } from "@/hooks/use-stable-event";
 import type { KeyboardActionDefinition } from "@/keyboard/keyboard-action-dispatcher";
+import { useKeyboardActionDispatcher } from "@/keyboard/keyboard-action-dispatcher-context";
 import { usePaneContext, usePaneFocus } from "@/panels/pane-context";
 import { definePanel, type PanelIconProps } from "@/panels/panel-registry";
+import { useWorkspace } from "@/stores/session-store-hooks";
+import { collectAllPanes, useWorkspaceLayoutStore } from "@/stores/workspace-layout-store";
 import { ICON_SIZE, SPACING, type Theme } from "@/styles/theme";
 import {
   useWorkspaceTabLaunchCatalog,
+  type WorkspaceTabLaunchGroup,
   type WorkspaceTabLaunchItem,
 } from "@/workspace-tabs/launcher";
+import { buildNewWorkspaceRoute } from "@/utils/host-routes";
+import { CHAT_LAUNCH_TARGET } from "@/new-workspace-launch/target";
 
 const ThemedPlus = withUnistyles(Plus);
 const ThemedPencil = withUnistyles(Pencil);
@@ -37,6 +45,46 @@ const LAUNCHER_MAX_WIDTH = 380;
 const EDIT_PROFILES_HIT_SIZE = ICON_SIZE.xs + SPACING[2];
 const ROW_DATA_SET = { newTabLauncherRow: "true" };
 const ROW_SELECTOR = '[data-new-tab-launcher-row="true"]';
+const WORKTREE_AGENT_ITEM_ID = "agent-worktree";
+const LETTER_ACCELERATORS: Record<string, string> = {
+  agent: "A",
+  [WORKTREE_AGENT_ITEM_ID]: "W",
+  terminal: "T",
+  browser: "B",
+  changes: "C",
+  diff: "D",
+  files: "F",
+  "pull-request": "P",
+};
+
+/** Built-ins keep a mnemonic letter; plugin panels and terminal profiles count up from 1. */
+function assignAccelerators(groups: readonly WorkspaceTabLaunchGroup[]): Map<string, string> {
+  const accelerators = new Map<string, string>();
+  let digit = 1;
+  for (const item of groups.flatMap((group) => group.items)) {
+    const letter = LETTER_ACCELERATORS[item.id];
+    if (letter) {
+      accelerators.set(item.id, letter);
+    } else if (digit <= 9) {
+      accelerators.set(item.id, String(digit));
+      digit += 1;
+    }
+  }
+  return accelerators;
+}
+
+function withItemAfterAgent(
+  groups: readonly WorkspaceTabLaunchGroup[],
+  extra: WorkspaceTabLaunchItem,
+): WorkspaceTabLaunchGroup[] {
+  return groups.map((group) => {
+    if (group.id !== "tabs") return group;
+    const items = [...group.items];
+    items.splice(items.findIndex((item) => item.id === "agent") + 1, 0, extra);
+    return { ...group, items };
+  });
+}
+
 function LauncherIcon({
   Icon,
   color = "",
@@ -48,11 +96,6 @@ function LauncherIcon({
 }
 
 const ThemedLauncherIcon = withUnistyles(LauncherIcon);
-
-function LauncherShortcut({ actionId }: { actionId: string }): ReactElement | null {
-  const keys = useShortcutKeys(actionId);
-  return keys ? <Shortcut chord={keys} /> : null;
-}
 
 function rowStyle({
   pressed,
@@ -87,7 +130,13 @@ function EditProfilesButton({ label, onPress }: { label: string; onPress: () => 
   );
 }
 
-function LauncherRow({ item }: { item: WorkspaceTabLaunchItem }) {
+function LauncherRow({
+  item,
+  accelerator,
+}: {
+  item: WorkspaceTabLaunchItem;
+  accelerator: string | undefined;
+}) {
   const { tabId } = usePaneContext();
   const handlePress = useCallback(() => {
     item.launch({ kind: "replace", tabId });
@@ -111,7 +160,7 @@ function LauncherRow({ item }: { item: WorkspaceTabLaunchItem }) {
       <Text numberOfLines={1} style={styles.rowLabel}>
         {item.label}
       </Text>
-      {item.shortcutActionId ? <LauncherShortcut actionId={item.shortcutActionId} /> : null}
+      {accelerator ? <Shortcut keys={[accelerator]} /> : null}
     </Pressable>
   );
 }
@@ -130,21 +179,75 @@ function useNewTabDescriptor() {
 }
 
 const NewTabPanel = memo(function NewTabPanel(): ReactElement {
-  const { host, serverId, tabId } = usePaneContext();
+  const { t } = useTranslation();
+  const { host, serverId, workspaceId, tabId, closeCurrentTab } = usePaneContext();
   const { isInteractive, focusPane } = usePaneFocus();
   const containerRef = useRef<View | null>(null);
-  const groups = useWorkspaceTabLaunchCatalog({
+  const keyboardActionDispatcher = useKeyboardActionDispatcher();
+  const { updatePreferences } = useFormPreferences();
+  const workspace = useWorkspace(serverId, workspaceId);
+  const gitWorkspace = workspace?.projectKind === "git" ? workspace : null;
+  const isOnlyTabInPane = useWorkspaceLayoutStore((state) => {
+    const layout = state.layoutByWorkspace[`${serverId}:${workspaceId}`];
+    if (!layout) return false;
+    const pane = collectAllPanes(layout.root).find((candidate) => candidate.tabIds.includes(tabId));
+    return pane?.tabIds.length === 1;
+  });
+  const catalogGroups = useWorkspaceTabLaunchCatalog({
     serverId,
     purpose: host === "explorer" ? "supporting" : "primary",
     host,
     surface: "panel",
   });
+  const groups = useMemo(() => {
+    if (host !== "main" || !gitWorkspace) return catalogGroups;
+    return withItemAfterAgent(catalogGroups, {
+      id: WORKTREE_AGENT_ITEM_ID,
+      label: t("workspace.tabs.actions.newAgentInWorktree"),
+      Icon: GitBranch,
+      disabled: false,
+      panelKind: "draft",
+      launch: async () => {
+        await updatePreferences({ isolation: "worktree", launchTarget: CHAT_LAUNCH_TARGET });
+        router.navigate(
+          buildNewWorkspaceRoute({
+            serverId,
+            sourceDirectory: gitWorkspace.projectRootPath,
+            projectId: gitWorkspace.projectId,
+          }) as never,
+        );
+      },
+    });
+  }, [catalogGroups, gitWorkspace, host, serverId, t, updatePreferences]);
   const itemsById = useMemo(
     () => new Map(groups.flatMap((group) => group.items).map((item) => [item.id, item])),
     [groups],
   );
+  const accelerators = useMemo(() => assignAccelerators(groups), [groups]);
   const handlesWorkspaceShortcuts = isInteractive && host === "main";
 
+  const handleLauncherKey = useStableEvent((event: KeyboardEvent): boolean => {
+    if (event.metaKey || event.ctrlKey || event.altKey) return false;
+    if (event.key === "Escape") {
+      if (host !== "main") return false;
+      if (isOnlyTabInPane) {
+        keyboardActionDispatcher.dispatch({ id: "workspace.pane.close", scope: "workspace" });
+      } else {
+        closeCurrentTab();
+      }
+      return true;
+    }
+    if (event.shiftKey) return false;
+    const key = event.key.toUpperCase();
+    for (const [itemId, accelerator] of accelerators) {
+      if (accelerator !== key) continue;
+      const item = itemsById.get(itemId);
+      if (!item || item.disabled) return false;
+      item.launch({ kind: "replace", tabId });
+      return true;
+    }
+    return false;
+  });
   useEffect(() => {
     if (!isWeb || !isInteractive) return;
     const container: unknown = containerRef.current;
@@ -164,6 +267,11 @@ const NewTabPanel = memo(function NewTabPanel(): ReactElement {
       }
     }
     function handleKeyDown(event: KeyboardEvent) {
+      if (handleLauncherKey(event)) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
       const availableRows = rows();
       const currentIndex = availableRows.findIndex((row) => row === document.activeElement);
       let direction = 0;
@@ -194,7 +302,7 @@ const NewTabPanel = memo(function NewTabPanel(): ReactElement {
       webContainer.removeEventListener("pointerdown", handlePointerDown, true);
       webContainer.removeEventListener("keydown", handleKeyDown);
     };
-  }, [focusPane, isInteractive]);
+  }, [focusPane, handleLauncherKey, isInteractive]);
 
   const handleKeyboardAction = useCallback(
     (action: KeyboardActionDefinition): boolean => {
@@ -260,7 +368,7 @@ const NewTabPanel = memo(function NewTabPanel(): ReactElement {
                 </View>
               ) : null}
               {group.items.map((item) => (
-                <LauncherRow key={item.id} item={item} />
+                <LauncherRow key={item.id} item={item} accelerator={accelerators.get(item.id)} />
               ))}
             </View>
           ))}

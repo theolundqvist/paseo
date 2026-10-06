@@ -650,6 +650,7 @@ export const ar: TranslationResources = {
       actions: {
         newTab: "علامة تبويب جديدة",
         newAgent: "وكيل جديد",
+        newAgentInWorktree: "وكيل في worktree جديد",
         newTerminal: "محطة جديدة",
         preparingTerminal: "إعداد علامة التبويب المحطة الطرفية",
         preparingTerminalTooltip: "جارٍ تحضير المحطة...",
@@ -2319,6 +2320,7 @@ export const ar: TranslationResources = {
         tabsPanes: "علامات التبويب والأجزاء",
         layout: "التخطيط",
         agentInput: "إدخال Agent",
+        plugins: "الإضافات",
       },
       help: {
         openProject: "مشروع مفتوح",

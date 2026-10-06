@@ -133,6 +133,11 @@ function stateSource() {
   };
 }
 
+const hostNavigation = {
+  openAgent() {},
+  openWorkspace() {},
+};
+
 describe("plugin Command Center contributions", () => {
   it("shows only contributions whose synchronous context exists", () => {
     const installed = plugin(() => undefined);
@@ -144,6 +149,7 @@ describe("plugin Command Center contributions", () => {
         openSurface() {},
         openWorkspacePanel() {},
         openAgentPanel() {},
+        host: hostNavigation,
       },
       reportError() {},
     };
@@ -182,6 +188,7 @@ describe("plugin Command Center contributions", () => {
       rpcValue = (await context.rpc(inspect, { value: 4 })).value;
       context.openSurface("main");
       context.openPanel("details", { location: "explorer" });
+      context.navigation.openAgent({ agentId: context.agent.id });
     });
     const actions = buildPluginCommandCenterContributions({
       plugins: [installed],
@@ -199,6 +206,12 @@ describe("plugin Command Center contributions", () => {
         openAgentPanel(pluginId, panelId, agentId, location) {
           opened.push(`${pluginId}/agent/${panelId}/${agentId}/${location}`);
         },
+        host: {
+          openAgent({ agentId }) {
+            opened.push(`host/agent/${agentId}`);
+          },
+          openWorkspace() {},
+        },
       },
       reportError(error) {
         throw error;
@@ -210,7 +223,49 @@ describe("plugin Command Center contributions", () => {
     expect(rpcValue).toBe(5);
     // Commands use the plugin's one client.
     expect(receivedPaseo).toBe(installed.paseo);
-    expect(opened).toEqual(["review/surface/main", "review/agent/details/agent-1/explorer"]);
+    expect(opened).toEqual([
+      "review/surface/main",
+      "review/agent/details/agent-1/explorer",
+      "host/agent/agent-1",
+    ]);
+  });
+
+  it("tells global commands which agent is focused", async () => {
+    const received: unknown[] = [];
+    const installed = plugin(() => undefined);
+    installed.commandCenterItems = [
+      {
+        id: "global",
+        title: "Global review",
+        icon: "Scan",
+        context: "global",
+        onSelect: (context) => {
+          received.push(context.focusedAgent);
+        },
+      },
+    ];
+    const build = (agentId: string | null) =>
+      buildPluginCommandCenterContributions({
+        plugins: [installed],
+        state: stateSource(),
+        workspaceId: null,
+        agentId,
+        navigation: {
+          openSettings() {},
+          openSurface() {},
+          openWorkspacePanel() {},
+          openAgentPanel() {},
+          host: hostNavigation,
+        },
+        reportError(error) {
+          throw error;
+        },
+      });
+
+    await build(agent.id)[0]?.run();
+    await build(null)[0]?.run();
+
+    expect(received).toEqual([{ id: agent.id, workspaceId: workspace.id }, undefined]);
   });
 
   it("removes every contribution when its installation disappears", () => {
@@ -225,6 +280,7 @@ describe("plugin Command Center contributions", () => {
           openSurface() {},
           openWorkspacePanel() {},
           openAgentPanel() {},
+          host: hostNavigation,
         },
         reportError() {},
       }),

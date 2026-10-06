@@ -384,10 +384,21 @@ existing agent-context instances, but it cannot create an agent panel without an
 
 Command Center callbacks use the selected host's existing `PaseoApi` for normal Paseo operations.
 They use typed plugin RPC only for plugin-specific backend work. Surface and panel navigation
-belongs to the app; plugins do not receive Expo Router or workspace-layout store access.
-See the public [navigation fields](../public-docs/plugins/reference.md#screens-and-sidebar-items)
+belongs to the app; plugins do not receive Expo Router or workspace-layout store access. Every
+Command Center and slash-command context carries the same host `navigation` that surfaces receive
+(built by `createPluginNavigation`), and global contexts add `focusedAgent` when an agent tab is
+focused. See the public [navigation fields](../public-docs/plugins/reference.md#screens-and-sidebar-items)
 and [external links and workspace browsers](../public-docs/plugins/reference.md#external-links-and-workspace-browsers)
 for the author-facing contract.
+
+A Command Center item's optional `shortcut` becomes a binding in the app keyboard engine, not a
+separate listener. `PluginCommandCenterActions` publishes each item's default chord and, for items
+whose context currently exists, a runner into `keyboard/plugin-shortcuts.ts`. `buildEffectiveBindings`
+appends plugin bindings after every built-in, applies user overrides keyed
+`plugin:<pluginId>:<itemId>`, and drops a plugin chord that overlaps one already claimed for the
+platform, so built-ins always win. The bindings feed matching, the Electron browser-guest key policy,
+and the Plugins section of the shortcuts dialog and settings. Uninstalling the plugin or tearing down
+its client removes the item, which removes the binding and runner.
 
 ## Lifecycle hooks
 

@@ -656,6 +656,7 @@ export const fr: TranslationResources = {
       actions: {
         newTab: "Nouvel onglet",
         newAgent: "Nouvel agent",
+        newAgentInWorktree: "Agent dans un nouveau worktree",
         newTerminal: "Nouveau terminal",
         preparingTerminal: "Préparation de l’onglet de terminal…",
         preparingTerminalTooltip: "Préparation du terminal…",
@@ -2371,6 +2372,7 @@ export const fr: TranslationResources = {
         tabsPanes: "Onglets et panneaux",
         layout: "Disposition",
         agentInput: "Zone de saisie",
+        plugins: "Plugins",
       },
       help: {
         openProject: "Ouvrir un projet",

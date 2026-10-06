@@ -655,6 +655,7 @@ export const ptBR: TranslationResources = {
       actions: {
         newTab: "Nova aba",
         newAgent: "Novo agente",
+        newAgentInWorktree: "Agente em novo worktree",
         newTerminal: "Novo terminal",
         preparingTerminal: "Preparando aba de terminal",
         preparingTerminalTooltip: "Preparando terminal...",
@@ -2354,6 +2355,7 @@ export const ptBR: TranslationResources = {
         tabsPanes: "Abas e painéis",
         layout: "Layout",
         agentInput: "Entrada do agente",
+        plugins: "Plugins",
       },
       help: {
         openProject: "Abrir projeto",

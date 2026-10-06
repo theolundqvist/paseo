@@ -4,6 +4,7 @@ import type { PluginPanelLocation } from "@getpaseo/plugin/client";
 import { navigateToWorkspace } from "@/stores/navigation-active-workspace-store";
 import { useWorkspaceLayoutStore } from "@/stores/workspace-layout-store";
 import { buildPluginSurfaceRoute } from "./routes";
+import { createAppPluginHostNavigation } from "./host-navigation";
 import type { PluginNavigation } from "./actions";
 
 export function createPluginNavigation(input: {
@@ -20,6 +21,7 @@ export function createPluginNavigation(input: {
     return { mode: "pane" as const, paneId };
   }
   return {
+    host: createAppPluginHostNavigation(serverId),
     openSettings(pluginId, screenId) {
       router.push(buildPluginSettingsRoute(serverId, pluginId, screenId));
     },

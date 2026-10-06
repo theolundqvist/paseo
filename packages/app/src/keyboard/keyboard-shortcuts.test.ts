@@ -17,6 +17,7 @@ import {
   type ParsedShortcutBinding,
   type ShortcutOverrides,
 } from "./keyboard-shortcuts";
+import { runPluginShortcut, usePluginShortcutsStore } from "./plugin-shortcuts";
 
 function keyboardInput(overrides: Partial<KeyboardShortcutInput>): KeyboardShortcutInput {
   return {
@@ -138,14 +139,26 @@ describe("keyboard-shortcuts", () => {
       action: "agent.new",
     },
     {
-      name: "matches Cmd+N to create new workspace on mac",
+      name: "matches Cmd+N to split the pane right on mac desktop",
       event: { key: "n", code: "KeyN", metaKey: true },
+      context: { isMac: true, isDesktop: true, commandCenterOpen: false },
+      action: "workspace.pane.split.right",
+    },
+    {
+      name: "matches Ctrl+Shift+N to split the pane down on non-mac desktop",
+      event: { key: "N", code: "KeyN", ctrlKey: true, shiftKey: true },
+      context: { isMac: false, isDesktop: true, commandCenterOpen: false, focusScope: "other" },
+      action: "workspace.pane.split.down",
+    },
+    {
+      name: "matches Cmd+Alt+N to create new workspace on mac",
+      event: { key: "˜", code: "KeyN", metaKey: true, altKey: true },
       context: { isMac: true, commandCenterOpen: false },
       action: "workspace.new",
     },
     {
-      name: "matches Ctrl+N to create new workspace on non-mac",
-      event: { key: "n", code: "KeyN", ctrlKey: true },
+      name: "matches Ctrl+Alt+N to create new workspace on non-mac",
+      event: { key: "n", code: "KeyN", ctrlKey: true, altKey: true },
       context: { isMac: false, commandCenterOpen: false, focusScope: "other" },
       action: "workspace.new",
     },
@@ -413,8 +426,8 @@ describe("keyboard-shortcuts", () => {
 
   const nonMatchingCases: NonMatchingShortcutCase[] = [
     {
-      name: "does not keep old Mod+Alt+N binding",
-      event: { key: "n", code: "KeyN", metaKey: true, altKey: true },
+      name: "leaves Cmd+N to the browser on mac web",
+      event: { key: "n", code: "KeyN", metaKey: true },
       context: { isMac: true },
     },
     {
@@ -716,7 +729,7 @@ describe("keyboard-shortcut help sections", () => {
       context: { isMac: true, isDesktop: true },
       expectedKeys: {
         "new-agent": ["mod", "O"],
-        "new-workspace": ["mod", "N"],
+        "new-workspace": ["mod", "alt", "N"],
         "workspace-tab-new": ["mod", "T"],
         "workspace-jump-index": ["mod", "1-9"],
         "workspace-tab-jump-index": ["mod", "alt", "1-9"],
@@ -725,7 +738,7 @@ describe("keyboard-shortcut help sections", () => {
         // `formatShortcut` renders both as ⌘, so the badge is unchanged — see
         // the render assertion below.
         "workspace-tab-close-current": ["mod", "W"],
-        "workspace-pane-split-right": ["mod", "\\"],
+        "workspace-pane-split-right": ["mod", "N"],
         "workspace-pane-close": ["mod", "shift", "W"],
       },
     },
@@ -777,7 +790,7 @@ describe("keyboard-shortcut help sections", () => {
     // The reported bug: the cheat sheet advertised the shipped default no matter
     // what the user had rebound the shortcut to.
     it("shows the override, not the shipped default", () => {
-      expect(rowChord({}, "new-workspace")).toEqual([["mod", "N"]]);
+      expect(rowChord({}, "new-workspace")).toEqual([["mod", "alt", "N"]]);
       expect(rowChord({ [NEW_WORKSPACE_BINDING]: "Cmd+Shift+K" }, "new-workspace")).toEqual([
         ["mod", "shift", "K"],
       ]);
@@ -798,7 +811,7 @@ describe("keyboard-shortcut help sections", () => {
       expect(rowChord({ [NEW_WORKSPACE_BINDING]: "Cmd+Shift+K" }, "new-workspace")).toEqual([
         ["mod", "shift", "K"],
       ]);
-      expect(rowChord({}, "new-workspace")).toEqual([["mod", "N"]]);
+      expect(rowChord({}, "new-workspace")).toEqual([["mod", "alt", "N"]]);
     });
 
     // An arrow override used to render as the raw `ARROWLEFT` code, because the
@@ -1260,5 +1273,85 @@ describe("direct new-tab target shortcuts", () => {
     expect(
       resolveShortcutKeysForAction("workspace-tab-target-agent", overrides, desktopNonMac),
     ).toEqual([["ctrl", "shift", "H"]]);
+  });
+});
+
+describe("plugin Command Center shortcuts", () => {
+  const NEXT_NEED = "plugin:needs:next-need";
+  const macDesktop = { isMac: true, isDesktop: true };
+  const nonMacDesktop = { isMac: false, isDesktop: true };
+  const jEvent = { key: "j", code: "KeyJ" };
+
+  function pluginBindings(
+    combo: string,
+    platform: { isMac: boolean; isDesktop: boolean },
+    overrides: ShortcutOverrides = {},
+  ) {
+    return buildEffectiveBindings(overrides, {
+      shortcuts: [{ bindingId: NEXT_NEED, title: "Go to next need", combo }],
+      platform,
+    });
+  }
+
+  it("resolves Mod to Cmd on mac and Ctrl elsewhere", () => {
+    const onMac = resolveShortcut({
+      event: { ...jEvent, metaKey: true },
+      context: macDesktop,
+      bindings: pluginBindings("Mod+J", macDesktop),
+    });
+    const ctrlOnMac = resolveShortcut({
+      event: { ...jEvent, ctrlKey: true },
+      context: macDesktop,
+      bindings: pluginBindings("Mod+J", macDesktop),
+    });
+    const onLinux = resolveShortcut({
+      event: { ...jEvent, ctrlKey: true },
+      context: nonMacDesktop,
+      bindings: pluginBindings("Mod+J", nonMacDesktop),
+    });
+
+    expect(onMac.match?.action).toBe("plugin.command-center-item");
+    expect(onMac.match?.payload).toEqual({ bindingId: NEXT_NEED });
+    expect(ctrlOnMac.match).toBeNull();
+    expect(onLinux.match?.payload).toEqual({ bindingId: NEXT_NEED });
+  });
+
+  it("lets the built-in keep a chord a plugin also claims", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const bindings = pluginBindings("Mod+O", macDesktop);
+    const result = resolveShortcut({
+      event: { key: "o", code: "KeyO", metaKey: true },
+      context: macDesktop,
+      bindings,
+    });
+
+    expect(result.match?.action).toBe("agent.new");
+    expect(bindings.find((binding) => binding.id === NEXT_NEED)?.parsedChord).toEqual([]);
+    expect(warn).toHaveBeenCalledOnce();
+    warn.mockRestore();
+  });
+
+  it("fires the user's override instead of the plugin's chord", () => {
+    const bindings = pluginBindings("Mod+J", macDesktop, { [NEXT_NEED]: "Alt+K" });
+
+    expect(
+      resolveShortcut({ event: { ...jEvent, metaKey: true }, context: macDesktop, bindings }).match,
+    ).toBeNull();
+    expect(
+      resolveShortcut({
+        event: { key: "˚", code: "KeyK", altKey: true },
+        context: macDesktop,
+        bindings,
+      }).match?.payload,
+    ).toEqual({ bindingId: NEXT_NEED });
+  });
+
+  it("does nothing when the item's context is unavailable", () => {
+    const run = vi.fn();
+    usePluginShortcutsStore.setState({ runners: new Map([["plugin:needs:other", run]]) });
+
+    expect(runPluginShortcut(NEXT_NEED)).toBe(false);
+    expect(runPluginShortcut("plugin:needs:other")).toBe(true);
+    expect(run).toHaveBeenCalledOnce();
   });
 });

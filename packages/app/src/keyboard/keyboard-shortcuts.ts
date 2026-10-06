@@ -11,6 +11,7 @@ import {
   type KeyCombo,
   parseChordString,
 } from "@/keyboard/shortcut-string";
+import type { PluginShortcut } from "@/keyboard/plugin-shortcuts";
 
 export type { KeyCombo } from "@/keyboard/shortcut-string";
 
@@ -43,14 +44,21 @@ export interface KeyboardShortcutMatch {
 export interface KeyboardShortcutHelpRow {
   id: string;
   label: string;
-  labelKey: string;
+  /** Absent for plugin rows, whose label is the plugin's own title. */
+  labelKey?: string;
   /** The keys that actually fire this action, or `null` when it has none. */
   chord: ShortcutKey[][] | null;
   note?: string;
   noteKey?: string;
 }
 
-export type ShortcutSectionId = "general" | "workspaces" | "tabs-panes" | "layout" | "agent-input";
+export type ShortcutSectionId =
+  | "general"
+  | "workspaces"
+  | "tabs-panes"
+  | "layout"
+  | "agent-input"
+  | "plugins";
 
 export interface KeyboardShortcutHelpSection {
   id: ShortcutSectionId;
@@ -84,7 +92,8 @@ interface ShortcutWhen {
 type ShortcutPayloadDef =
   | { type: "index" }
   | { type: "delta"; delta: 1 | -1 }
-  | { type: "message-input"; kind: MessageInputKeyboardActionKind };
+  | { type: "message-input"; kind: MessageInputKeyboardActionKind }
+  | { type: "plugin"; bindingId: string };
 
 interface ShortcutHelp {
   id: string;
@@ -132,6 +141,7 @@ const SHORTCUT_HELP_SECTION_ORDER: readonly ShortcutSectionId[] = [
   "tabs-panes",
   "layout",
   "agent-input",
+  "plugins",
 ];
 
 const SHORTCUT_HELP_SECTION_TITLES: Record<ShortcutSectionId, string> = {
@@ -140,6 +150,7 @@ const SHORTCUT_HELP_SECTION_TITLES: Record<ShortcutSectionId, string> = {
   "tabs-panes": "Tabs & Panes",
   layout: "Layout",
   "agent-input": "Agent Input",
+  plugins: "Plugins",
 };
 
 const SHORTCUT_HELP_SECTION_LABEL_KEYS: Record<ShortcutSectionId, string> = {
@@ -148,6 +159,7 @@ const SHORTCUT_HELP_SECTION_LABEL_KEYS: Record<ShortcutSectionId, string> = {
   "tabs-panes": "settings.shortcuts.sections.tabsPanes",
   layout: "settings.shortcuts.sections.layout",
   "agent-input": "settings.shortcuts.sections.agentInput",
+  plugins: "settings.shortcuts.sections.plugins",
 };
 
 // Rows render in this order rather than in binding-definition order, so the shortcut someone opens
@@ -202,6 +214,7 @@ export const SHORTCUT_HELP_ROW_ORDER: Record<ShortcutSectionId, readonly string[
     "agent-interrupt",
     "voice-mute-toggle",
   ],
+  plugins: [],
 };
 
 const SHORTCUT_HELP_LABEL_KEYS: Record<string, string> = {
@@ -286,10 +299,12 @@ const SHORTCUT_BINDINGS: readonly ShortcutBinding[] = [
   },
 
   // --- New workspace ---
+  // Cmd/Ctrl+N split panes instead. The ids keep their "-n-" names because
+  // user overrides are keyed by binding id.
   {
     id: "workspace-new-cmd-n-mac",
     action: "workspace.new",
-    combo: "Cmd+N",
+    combo: "Cmd+Alt+N",
     when: { mac: true, commandCenter: false },
     help: {
       id: "new-workspace",
@@ -300,7 +315,7 @@ const SHORTCUT_BINDINGS: readonly ShortcutBinding[] = [
   {
     id: "workspace-new-ctrl-n-non-mac",
     action: "workspace.new",
-    combo: "Ctrl+N",
+    combo: "Ctrl+Alt+N",
     when: { mac: false, commandCenter: false, terminal: false },
     help: {
       id: "new-workspace",
@@ -714,7 +729,51 @@ const SHORTCUT_BINDINGS: readonly ShortcutBinding[] = [
     },
   },
 
-  // --- Pane management (mac only) ---
+  // --- Pane management ---
+  {
+    id: "workspace-pane-split-right-cmd-n-mac",
+    action: "workspace.pane.split.right",
+    combo: "Cmd+N",
+    when: { mac: true, desktop: true, commandCenter: false },
+    help: {
+      id: "workspace-pane-split-right",
+      section: "tabs-panes",
+      label: "Split pane right",
+    },
+  },
+  {
+    id: "workspace-pane-split-right-ctrl-n-non-mac",
+    action: "workspace.pane.split.right",
+    combo: "Ctrl+N",
+    when: { mac: false, desktop: true, commandCenter: false, terminal: false },
+    help: {
+      id: "workspace-pane-split-right",
+      section: "tabs-panes",
+      label: "Split pane right",
+    },
+  },
+  {
+    id: "workspace-pane-split-down-cmd-shift-n-mac",
+    action: "workspace.pane.split.down",
+    combo: "Cmd+Shift+N",
+    when: { mac: true, desktop: true, commandCenter: false },
+    help: {
+      id: "workspace-pane-split-down",
+      section: "tabs-panes",
+      label: "Split pane down",
+    },
+  },
+  {
+    id: "workspace-pane-split-down-ctrl-shift-n-non-mac",
+    action: "workspace.pane.split.down",
+    combo: "Ctrl+Shift+N",
+    when: { mac: false, desktop: true, commandCenter: false, terminal: false },
+    help: {
+      id: "workspace-pane-split-down",
+      section: "tabs-panes",
+      label: "Split pane down",
+    },
+  },
   {
     id: "workspace-pane-split-right-cmd-backslash",
     action: "workspace.pane.split.right",
@@ -1210,8 +1269,16 @@ export const DEFAULT_BINDINGS: readonly ParsedShortcutBinding[] =
 
 export type ShortcutOverrides = Record<string, string | null>;
 
-export function buildEffectiveBindings(overrides: ShortcutOverrides): ParsedShortcutBinding[] {
-  return DEFAULT_BINDINGS.map(function (binding) {
+export interface PluginShortcutBindingsInput {
+  shortcuts: readonly PluginShortcut[];
+  platform: KeyboardShortcutPlatformContext;
+}
+
+export function buildEffectiveBindings(
+  overrides: ShortcutOverrides,
+  plugins?: PluginShortcutBindingsInput,
+): ParsedShortcutBinding[] {
+  const builtIns = DEFAULT_BINDINGS.map(function (binding) {
     const override = overrides[binding.id];
     if (override === UNASSIGNED_COMBO) {
       return { ...binding, combo: "", parsedChord: [] };
@@ -1237,6 +1304,102 @@ export function buildEffectiveBindings(overrides: ShortcutOverrides): ParsedShor
     const { defaultDisplayKeys: _defaultDisplayKeys, ...help } = binding.help;
     return { ...binding, combo: override, parsedChord, when, help };
   });
+  return plugins ? [...builtIns, ...buildPluginBindings(builtIns, overrides, plugins)] : builtIns;
+}
+
+const warnedPluginCollisions = new Set<string>();
+
+/**
+ * Plugin bindings come after every built-in, and each one only claims a chord
+ * no earlier binding claimed for this platform. Overlapping prefixes count as
+ * a collision because the engine waits on a multi-step chord instead of firing
+ * the single combo it starts with.
+ */
+function buildPluginBindings(
+  builtIns: readonly ParsedShortcutBinding[],
+  overrides: ShortcutOverrides,
+  { shortcuts, platform }: PluginShortcutBindingsInput,
+): ParsedShortcutBinding[] {
+  const claimed = builtIns.filter(
+    (binding) => binding.parsedChord.length > 0 && helpMatchesPlatform(binding.when, platform),
+  );
+  return shortcuts.map(function (shortcut) {
+    const override = overrides[shortcut.bindingId];
+    let combo = shortcut.combo;
+    let parsedChord = parseBindingChord(combo);
+    if (override === UNASSIGNED_COMBO) {
+      combo = "";
+      parsedChord = [];
+    } else if (typeof override === "string") {
+      try {
+        parsedChord = parseBindingChord(override);
+        combo = override;
+      } catch {
+        // Unparseable stored override: fall back to the plugin's default.
+      }
+    }
+    const lastCombo = parsedChord.at(-1);
+    if (lastCombo) lastCombo.repeat = false;
+    const binding: ParsedShortcutBinding = {
+      id: shortcut.bindingId,
+      action: "plugin.command-center-item",
+      repeat: false,
+      combo,
+      parsedChord,
+      when: pluginShortcutWhen(parsedChord[0], platform.isMac),
+      payload: { type: "plugin", bindingId: shortcut.bindingId },
+      help: { id: shortcut.bindingId, section: "plugins", label: shortcut.title },
+    };
+    const winner = claimed.find((candidate) =>
+      chordsOverlap(candidate.parsedChord, parsedChord, platform.isMac),
+    );
+    if (!winner) {
+      if (parsedChord.length > 0) claimed.push(binding);
+      return binding;
+    }
+    const warningKey = `${shortcut.bindingId}\0${combo}\0${winner.id}`;
+    if (!warnedPluginCollisions.has(warningKey)) {
+      warnedPluginCollisions.add(warningKey);
+      console.warn(
+        `[Plugins] Shortcut ${combo} for ${shortcut.bindingId} collides with ${winner.id}; the plugin shortcut is dropped.`,
+      );
+    }
+    return { ...binding, combo: "", parsedChord: [] };
+  });
+}
+
+function pluginShortcutWhen(first: KeyCombo | undefined, isMac: boolean): ShortcutWhen {
+  const ctrl = first?.ctrl === true || (!isMac && first?.mod === true);
+  const meta = first?.meta === true || (isMac && first?.mod === true);
+  if (!ctrl && !meta && first?.alt !== true) {
+    return { commandCenter: false, focusScope: "other" };
+  }
+  return ctrl ? { commandCenter: false, terminal: false } : { commandCenter: false };
+}
+
+function combosCollide(left: KeyCombo, right: KeyCombo, isMac: boolean): boolean {
+  const codesMatch =
+    left.code === right.code ||
+    (left.code === "Digit" && right.code.startsWith("Digit")) ||
+    (right.code === "Digit" && left.code.startsWith("Digit"));
+  return (
+    codesMatch &&
+    (left.meta === true || (isMac && left.mod === true)) ===
+      (right.meta === true || (isMac && right.mod === true)) &&
+    (left.ctrl === true || (!isMac && left.mod === true)) ===
+      (right.ctrl === true || (!isMac && right.mod === true)) &&
+    (left.alt === true) === (right.alt === true) &&
+    (left.shift === true) === (right.shift === true)
+  );
+}
+
+function chordsOverlap(left: KeyCombo[], right: KeyCombo[], isMac: boolean): boolean {
+  const length = Math.min(left.length, right.length);
+  if (length === 0) return false;
+  for (let index = 0; index < length; index++) {
+    if (!combosCollide(left[index], right[index], isMac)) return false;
+  }
+  return true;
 }
 
 /**
@@ -1357,6 +1520,8 @@ function resolvePayload(
       return { delta: def.delta };
     case "message-input":
       return { kind: def.kind };
+    case "plugin":
+      return { bindingId: def.bindingId };
     default:
       throw new Error("unreachable");
   }
@@ -1553,8 +1718,9 @@ export function resolveKeyboardShortcut(input: {
 export function getBindingIdForAction(
   actionId: string,
   platform: { isMac: boolean; isDesktop: boolean },
+  bindings: readonly ParsedShortcutBinding[] = DEFAULT_BINDINGS,
 ): string | null {
-  for (const binding of DEFAULT_BINDINGS) {
+  for (const binding of bindings) {
     if (binding.help?.id !== actionId) {
       continue;
     }
@@ -1720,7 +1886,7 @@ export function buildKeyboardShortcutHelpSections(
     rows.push({
       id: help.id,
       label: help.label,
-      labelKey: SHORTCUT_HELP_LABEL_KEYS[help.id] ?? help.label,
+      ...(SHORTCUT_HELP_LABEL_KEYS[help.id] ? { labelKey: SHORTCUT_HELP_LABEL_KEYS[help.id] } : {}),
       chord: displayChordForBinding(binding),
       ...(help.note ? { note: help.note } : {}),
       ...(SHORTCUT_HELP_NOTE_KEYS[help.id] ? { noteKey: SHORTCUT_HELP_NOTE_KEYS[help.id] } : {}),

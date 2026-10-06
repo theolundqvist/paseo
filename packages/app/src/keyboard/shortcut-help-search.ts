@@ -75,7 +75,7 @@ export function filterShortcutHelpSections({
 
     const rows = section.rows.filter((row) => {
       const searchText = [
-        translate(row.labelKey),
+        row.labelKey ? translate(row.labelKey) : row.label,
         row.noteKey ? translate(row.noteKey) : row.note,
         row.chord ? shortcutSearchText(row.chord, shortcutOs) : null,
       ]

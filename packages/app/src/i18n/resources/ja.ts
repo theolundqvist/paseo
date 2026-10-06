@@ -657,6 +657,7 @@ export const ja: TranslationResources = {
       actions: {
         newTab: "新しいタブ",
         newAgent: "新しいエージェント",
+        newAgentInWorktree: "新しい worktree でエージェント",
         newTerminal: "新しいターミナル",
         preparingTerminal: "ターミナルタブを準備中",
         preparingTerminalTooltip: "ターミナルを準備中...",
@@ -2339,6 +2340,7 @@ export const ja: TranslationResources = {
         tabsPanes: "タブ＆ペイン",
         layout: "レイアウト",
         agentInput: "エージェント入力",
+        plugins: "プラグイン",
       },
       help: {
         openProject: "プロジェクトを開く",

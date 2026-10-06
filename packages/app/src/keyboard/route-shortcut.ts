@@ -33,7 +33,8 @@ export type ShortcutAction =
   | { kind: "open-project-picker" }
   | { kind: "callback"; name: ShortcutCallbackName }
   | { kind: "command-center-toggle"; nextOpen: boolean; scope?: "files" }
-  | { kind: "shortcuts-dialog-toggle"; nextOpen: boolean };
+  | { kind: "shortcuts-dialog-toggle"; nextOpen: boolean }
+  | { kind: "plugin-command"; bindingId: string };
 
 const NONE: ShortcutAction = { kind: "none" };
 
@@ -87,7 +88,7 @@ const MESSAGE_INPUT_DISPATCH: Record<
   "mode-cycle": { id: "message-input.mode-cycle", scope: "message-input" },
 };
 
-function hasPayloadKey<K extends "index" | "delta" | "kind">(
+function hasPayloadKey<K extends "index" | "delta" | "kind" | "bindingId">(
   payload: KeyboardShortcutPayload,
   key: K,
 ): payload is Extract<KeyboardShortcutPayload, Record<K, unknown>> {
@@ -216,6 +217,10 @@ export function routeKeyboardShortcut(
       return dispatch({ id: "workspace.project.pick", scope: "workspace" });
     case "shortcuts.dialog.toggle":
       return { kind: "shortcuts-dialog-toggle", nextOpen: !ctx.shortcutsDialogOpen };
+    case "plugin.command-center-item":
+      return hasPayloadKey(input.payload, "bindingId")
+        ? { kind: "plugin-command", bindingId: input.payload.bindingId }
+        : NONE;
     default:
       return NONE;
   }

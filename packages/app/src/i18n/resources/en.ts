@@ -647,6 +647,7 @@ export const en = {
       actions: {
         newTab: "New tab",
         newAgent: "New agent",
+        newAgentInWorktree: "Agent in new worktree",
         newTerminal: "New terminal",
         preparingTerminal: "Preparing terminal tab",
         preparingTerminalTooltip: "Preparing terminal...",
@@ -2442,6 +2443,7 @@ export const en = {
         tabsPanes: "Tabs & Panes",
         layout: "Layout",
         agentInput: "Agent Input",
+        plugins: "Plugins",
       },
       help: {
         openProject: "Open project",

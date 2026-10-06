@@ -13,6 +13,7 @@ import {
 } from "@/keyboard/keyboard-shortcuts";
 import { filterShortcutHelpSections } from "@/keyboard/shortcut-help-search";
 import { useKeyboardShortcutOverrides } from "@/hooks/use-keyboard-shortcut-overrides";
+import { usePluginShortcutsStore } from "@/keyboard/plugin-shortcuts";
 
 const SNAP_POINTS: string[] = ["70%", "92%"];
 
@@ -26,9 +27,17 @@ export function KeyboardShortcutsDialog() {
   const isMac = shortcutOs === "mac";
   const isDesktopApp = getIsElectronRuntime();
   const { overrides } = useKeyboardShortcutOverrides();
+  const pluginShortcuts = usePluginShortcutsStore((s) => s.shortcuts);
   // Effective bindings, so a shortcut the user unassigned lists no keys here
   // instead of advertising a default that no longer fires.
-  const bindings = useMemo(() => buildEffectiveBindings(overrides), [overrides]);
+  const bindings = useMemo(
+    () =>
+      buildEffectiveBindings(overrides, {
+        shortcuts: pluginShortcuts,
+        platform: { isMac, isDesktop: isDesktopApp },
+      }),
+    [isDesktopApp, isMac, overrides, pluginShortcuts],
+  );
   const sections = useMemo(
     () => buildKeyboardShortcutHelpSections({ isMac, isDesktop: isDesktopApp }, bindings),
     [bindings, isDesktopApp, isMac],
@@ -72,7 +81,9 @@ export function KeyboardShortcutsDialog() {
               {section.rows.map((row) => (
                 <View key={row.id} style={styles.row} testID={`shortcut-help-row-${row.id}`}>
                   <View style={styles.rowText}>
-                    <Text style={styles.rowLabel}>{t(row.labelKey)}</Text>
+                    <Text style={styles.rowLabel}>
+                      {row.labelKey ? t(row.labelKey) : row.label}
+                    </Text>
                     {row.note ? (
                       <Text style={styles.rowNote}>{row.noteKey ? t(row.noteKey) : row.note}</Text>
                     ) : null}

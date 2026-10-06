@@ -2,9 +2,13 @@ import type { PluginClientStateSource } from "@getpaseo/plugin/client/host";
 import type { CommandCenterContribution } from "@/command-center/contributions";
 import { getCommandCenterIcon } from "@/command-center/icon";
 import { resolvePluginIcon } from "../icons";
-import { resolvePluginPanelOpenLocation } from "../workspace-panels/locations";
 import type { InstalledPlugin } from "../types";
-import { createPluginCapabilities, type PluginNavigation } from "../actions";
+import {
+  createPluginAgentActionContext,
+  createPluginCapabilities,
+  createPluginWorkspaceActionContext,
+  type PluginNavigation,
+} from "../actions";
 
 export interface PluginCommandCenterSource {
   plugins: readonly InstalledPlugin[];
@@ -18,56 +22,46 @@ export interface PluginCommandCenterSource {
 export function buildPluginCommandCenterContributions(
   source: PluginCommandCenterSource,
 ): CommandCenterContribution[] {
+  const { state, navigation, workspaceId, agentId } = source;
   const contributions: CommandCenterContribution[] = [];
   for (const plugin of source.plugins) {
     for (const [rank, item] of plugin.commandCenterItems.entries()) {
-      if (item.context === "workspace" && !source.workspaceId) continue;
-      if (item.context === "agent" && (!source.workspaceId || !source.agentId)) continue;
+      if (item.context === "workspace" && !workspaceId) continue;
+      if (item.context === "agent" && (!workspaceId || !agentId)) continue;
       const run = async () => {
-        const common = createPluginCapabilities(plugin, source.navigation);
         try {
           if (item.context === "global") {
-            await item.onSelect({ context: "global", ...common });
-            return;
-          }
-          const workspace = source.workspaceId
-            ? source.state.getWorkspace(source.workspaceId)
-            : null;
-          if (!workspace) return;
-          if (item.context === "workspace") {
+            const focusedAgent = agentId ? state.getAgent(agentId) : null;
             await item.onSelect({
-              context: "workspace",
-              ...common,
-              workspace,
-              openPanel(panelId, options) {
-                const panel = plugin.workspacePanels.find(
-                  (candidate) => candidate.id === panelId && candidate.context === "workspace",
-                );
-                if (!panel) throw new Error(`Workspace panel is unavailable: ${panelId}`);
-                const location = resolvePluginPanelOpenLocation(panel, options?.location);
-                source.navigation.openWorkspacePanel(plugin.id, panelId, location);
-              },
+              context: "global",
+              ...createPluginCapabilities(plugin, navigation),
+              navigation: navigation.host,
+              ...(focusedAgent
+                ? { focusedAgent: { id: focusedAgent.id, workspaceId: focusedAgent.workspaceId } }
+                : {}),
             });
             return;
           }
-          const agent = source.agentId ? source.state.getAgent(source.agentId) : null;
-          if (!agent) return;
-          await item.onSelect({
-            context: "agent",
-            ...common,
-            workspace,
-            agent,
-            openPanel(panelId, options) {
-              const panel = plugin.workspacePanels.find((candidate) => candidate.id === panelId);
-              if (!panel) throw new Error(`Workspace panel is unavailable: ${panelId}`);
-              const location = resolvePluginPanelOpenLocation(panel, options?.location);
-              if (panel.context === "workspace") {
-                source.navigation.openWorkspacePanel(plugin.id, panelId, location);
-                return;
-              }
-              source.navigation.openAgentPanel(plugin.id, panelId, agent.id, location);
-            },
+          if (!workspaceId) return;
+          if (item.context === "workspace") {
+            const context = createPluginWorkspaceActionContext({
+              plugin,
+              navigation,
+              state,
+              workspaceId,
+            });
+            if (context) await item.onSelect(context);
+            return;
+          }
+          if (!agentId) return;
+          const context = createPluginAgentActionContext({
+            plugin,
+            navigation,
+            state,
+            workspaceId,
+            agentId,
           });
+          if (context) await item.onSelect(context);
         } catch (error) {
           source.reportError(error);
         }

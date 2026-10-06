@@ -2827,7 +2827,7 @@ function WorkspaceScreenContent({
       logLabel: string;
     }): Promise<boolean> => {
       const { tabsToClose, title, logLabel } = input;
-      if (tabsToClose.length === 0) {
+      if (tabsToClose.every((tab) => tab.target.kind === "new_tab")) {
         return true;
       }
 

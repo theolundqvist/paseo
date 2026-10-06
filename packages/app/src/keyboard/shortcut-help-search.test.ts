@@ -79,7 +79,7 @@ describe("filterShortcutHelpSections", () => {
   });
 
   it("matches a row by a spelled-out modifier", () => {
-    expect(matchedRowIds("command+n")).toContain("new-workspace");
+    expect(matchedRowIds("command+alt+n")).toContain("new-workspace");
   });
 
   // The reported bug, from the search side: the cheat sheet has to stop finding

@@ -30,21 +30,24 @@ export interface PluginHostProps {
   };
 }
 
+/** Client-owned navigation. Targets `serverId`, or the selected host when omitted. */
+export interface PluginHostNavigation {
+  /** Present only on Electron. The browser runs locally; serverId selects workspace ownership. */
+  readonly openBrowser?: (input: {
+    readonly url: string;
+    readonly workspaceId: string;
+    readonly serverId?: string;
+  }) => void;
+  readonly openAgent: (input: { readonly agentId: string; readonly serverId?: string }) => void;
+  readonly openWorkspace: (input: {
+    readonly workspaceId: string;
+    readonly serverId?: string;
+  }) => void;
+}
+
 interface PluginNavigableHostProps extends PluginHostProps {
-  /** Client-owned navigation. Undefined on older hosts; hide dependent affordances when absent. */
-  readonly navigation?: {
-    /** Present only on Electron. The browser runs locally; serverId selects workspace ownership. */
-    readonly openBrowser?: (input: {
-      readonly url: string;
-      readonly workspaceId: string;
-      readonly serverId?: string;
-    }) => void;
-    readonly openAgent: (input: { readonly agentId: string; readonly serverId?: string }) => void;
-    readonly openWorkspace: (input: {
-      readonly workspaceId: string;
-      readonly serverId?: string;
-    }) => void;
-  };
+  /** Undefined on older hosts; hide dependent affordances when absent. */
+  readonly navigation?: PluginHostNavigation;
 }
 
 /** String keys and values: params travel in the screen's URL. */
@@ -239,17 +242,23 @@ export interface PluginCommandCapabilities {
   openSettings(id: string): void;
 }
 
-export interface PluginGlobalCommandContext extends PluginCommandCapabilities {
-  context: "global";
+interface PluginCommandContextBase extends PluginCommandCapabilities {
+  navigation: PluginHostNavigation;
 }
 
-export interface PluginWorkspaceCommandContext extends PluginCommandCapabilities {
+export interface PluginGlobalCommandContext extends PluginCommandContextBase {
+  context: "global";
+  /** Present when the focused workspace tab is an agent. */
+  focusedAgent?: { id: string; workspaceId: string };
+}
+
+export interface PluginWorkspaceCommandContext extends PluginCommandContextBase {
   context: "workspace";
   workspace: PluginWorkspaceSnapshot;
   openPanel(id: string, options?: PluginOpenPanelOptions): void;
 }
 
-export interface PluginAgentCommandContext extends PluginCommandCapabilities {
+export interface PluginAgentCommandContext extends PluginCommandContextBase {
   context: "agent";
   workspace: PluginWorkspaceSnapshot;
   agent: PluginAgentSnapshot;
@@ -261,6 +270,8 @@ interface PluginCommandCenterItemBase {
   title: string;
   icon: string;
   keywords?: readonly string[];
+  /** Chord string such as `"Mod+J"`; `Mod` is Cmd on macOS and Ctrl elsewhere. */
+  shortcut?: string;
 }
 
 export type PluginCommandCenterItemContribution =

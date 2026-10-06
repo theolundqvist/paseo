@@ -17,12 +17,13 @@ import {
 import { Shortcut } from "@/components/ui/shortcut";
 import { useKeyboardShortcutOverrides } from "@/hooks/use-keyboard-shortcut-overrides";
 import {
+  buildEffectiveBindings,
   buildKeyboardShortcutHelpSections,
   getBindingIdForAction,
   getDefaultKeysForAction,
-  resolveShortcutKeysForAction,
   type KeyboardShortcutHelpRow,
 } from "@/keyboard/keyboard-shortcuts";
+import { usePluginShortcutsStore } from "@/keyboard/plugin-shortcuts";
 import {
   comboStringToShortcutKeys,
   heldModifiersFromEvent,
@@ -193,7 +194,9 @@ function ShortcutActionsMenu({
         hitSlop={8}
         style={triggerStyle}
         accessibilityRole="button"
-        accessibilityLabel={t("settings.shortcuts.actions.menu", { name: t(row.labelKey) })}
+        accessibilityLabel={t("settings.shortcuts.actions.menu", {
+          name: row.labelKey ? t(row.labelKey) : row.label,
+        })}
         testID={`shortcut-actions-${row.id}`}
       >
         {({ hovered, open }) => (
@@ -278,7 +281,7 @@ function ShortcutRow({
 
   return (
     <View style={rowStyle}>
-      <Text style={styles.rowLabel}>{t(row.labelKey)}</Text>
+      <Text style={styles.rowLabel}>{row.labelKey ? t(row.labelKey) : row.label}</Text>
       <View style={styles.rowActions}>
         <View style={styles.rowKeys}>
           <ShortcutRowKeys
@@ -336,7 +339,17 @@ export function KeyboardShortcutsSection() {
   const isFocused = useIsFocused();
   const isMac = getShortcutOs() === "mac";
   const isDesktopApp = getIsElectronRuntime();
-  const sections = buildKeyboardShortcutHelpSections({ isMac, isDesktop: isDesktopApp });
+  const pluginShortcuts = usePluginShortcutsStore((s) => s.shortcuts);
+  const platform = useMemo(() => ({ isMac, isDesktop: isDesktopApp }), [isDesktopApp, isMac]);
+  const defaultBindings = useMemo(
+    () => buildEffectiveBindings({}, { shortcuts: pluginShortcuts, platform }),
+    [platform, pluginShortcuts],
+  );
+  const effectiveBindings = useMemo(
+    () => buildEffectiveBindings(overrides, { shortcuts: pluginShortcuts, platform }),
+    [overrides, platform, pluginShortcuts],
+  );
+  const sections = buildKeyboardShortcutHelpSections(platform, defaultBindings);
 
   const cancelCapture = useCallback(() => {
     setCapturedCombos([]);
@@ -452,14 +465,14 @@ export function KeyboardShortcutsSection() {
           >
             <View style={settingsStyles.card}>
               {section.rows.map(function (row, index) {
-                const platform = { isMac, isDesktop: isDesktopApp };
-                const bindingId = getBindingIdForAction(row.id, platform);
-                const displayChord = resolveShortcutKeysForAction(row.id, overrides, platform);
+                const bindingId = getBindingIdForAction(row.id, platform, defaultBindings);
+                const displayChord = getDefaultKeysForAction(row.id, platform, effectiveBindings);
                 // `in`, not a truthiness check: an unassigned shortcut stores
                 // null, and Reset has to stay available to undo it.
                 const hasOverride = bindingId !== null && bindingId in overrides;
                 // A binding authored with `combo: ""` has nothing to reset to.
-                const hasDefault = getDefaultKeysForAction(row.id, platform) !== null;
+                const hasDefault =
+                  getDefaultKeysForAction(row.id, platform, defaultBindings) !== null;
 
                 return (
                   <View key={row.id}>

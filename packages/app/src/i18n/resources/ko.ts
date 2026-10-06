@@ -652,6 +652,7 @@ export const ko: TranslationResources = {
       actions: {
         newTab: "새 탭",
         newAgent: "새 에이전트",
+        newAgentInWorktree: "새 worktree에서 에이전트",
         newTerminal: "새 터미널",
         preparingTerminal: "터미널 탭 준비 중",
         preparingTerminalTooltip: "터미널 준비 중...",
@@ -2329,6 +2330,7 @@ export const ko: TranslationResources = {
         tabsPanes: "탭 및 창",
         layout: "레이아웃",
         agentInput: "에이전트 입력",
+        plugins: "플러그인",
       },
       help: {
         openProject: "프로젝트 열기",

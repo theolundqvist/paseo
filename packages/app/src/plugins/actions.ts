@@ -2,6 +2,7 @@ import { callPluginRpc } from "@getpaseo/plugin/client/host";
 import type {
   PluginAgentCommandContext,
   PluginCommandCapabilities,
+  PluginHostNavigation,
   PluginPanelLocation,
   PluginScreenParams,
   PluginWorkspaceCommandContext,
@@ -12,6 +13,7 @@ import { parsePluginOpenScreenInput } from "./surface-contribution";
 import type { InstalledPlugin } from "./types";
 
 export interface PluginNavigation {
+  host: PluginHostNavigation;
   openSettings(pluginId: string, screenId: string): void;
   openSurface(pluginId: string, surfaceId: string, params?: PluginScreenParams): void;
   openWorkspacePanel(pluginId: string, panelId: string, location: PluginPanelLocation): void;
@@ -59,6 +61,7 @@ export function createPluginAgentActionContext(input: {
   return {
     context: "agent",
     ...createPluginCapabilities(plugin, navigation),
+    navigation: navigation.host,
     workspace,
     agent,
     openPanel(panelId, options) {
@@ -86,6 +89,7 @@ export function createPluginWorkspaceActionContext(input: {
   return {
     context: "workspace",
     ...createPluginCapabilities(plugin, navigation),
+    navigation: navigation.host,
     workspace,
     openPanel(panelId, options) {
       const panel = plugin.workspacePanels.find(

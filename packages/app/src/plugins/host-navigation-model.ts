@@ -1,4 +1,4 @@
-import type { PluginSurfaceProps } from "@getpaseo/plugin/client";
+import type { PluginHostNavigation } from "@getpaseo/plugin/client";
 import type { NavigateToWorkspaceInput } from "@/stores/navigation-active-workspace-store";
 import { isHttpUrl } from "@/utils/http-url";
 
@@ -13,7 +13,7 @@ interface HostNavigationOwner {
 export function createPluginHostNavigation(
   serverId: string,
   owner: HostNavigationOwner,
-): NonNullable<PluginSurfaceProps["navigation"]> {
+): PluginHostNavigation {
   return {
     openAgent: ({ agentId, serverId: targetServerId }) =>
       owner.openAgent({ serverId: targetServerId ?? serverId, agentId }),

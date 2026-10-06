@@ -657,6 +657,7 @@ export const ru: TranslationResources = {
       actions: {
         newTab: "Новая вкладка",
         newAgent: "Новый агент",
+        newAgentInWorktree: "Агент в новом worktree",
         newTerminal: "Новый терминал",
         preparingTerminal: "Подготовка вкладки терминала",
         preparingTerminalTooltip: "Подготовка терминала...",
@@ -2359,6 +2360,7 @@ export const ru: TranslationResources = {
         tabsPanes: "Вкладки и панели",
         layout: "Макет",
         agentInput: "Ввод для агента",
+        plugins: "Плагины",
       },
       help: {
         openProject: "Открыть проект",
