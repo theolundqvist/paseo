@@ -615,6 +615,11 @@ export const fr: TranslationResources = {
       updateHost: "Mettez à jour l’hôte pour utiliser le rendu natif du terminal.",
       unableToSubscribe: "Impossible de s’abonner au terminal",
     },
+    linkedPullRequests: {
+      title: "Pull requests liées",
+      collapse: "Réduire les pull requests liées",
+      expand: "Développer les pull requests liées",
+    },
     tabs: {
       loading: "Chargement…",
       modified: "Modifications non enregistrées",

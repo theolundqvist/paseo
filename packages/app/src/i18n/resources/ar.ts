@@ -610,6 +610,11 @@ export const ar: TranslationResources = {
       updateHost: "حدّث المضيف لاستخدام عارض الطرفية الأصلي.",
       unableToSubscribe: "غير قادر على الاشتراك في المحطة",
     },
+    linkedPullRequests: {
+      title: "طلبات السحب المرتبطة",
+      collapse: "طي طلبات السحب المرتبطة",
+      expand: "توسيع طلبات السحب المرتبطة",
+    },
     tabs: {
       loading: "تحميل...",
       modified: "تغييرات غير محفوظة",

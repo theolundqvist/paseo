@@ -16,7 +16,20 @@ describe("desktop opener", () => {
     expect(opened).toEqual(["https://example.com/docs#install"]);
   });
 
-  it("does not hand non-web or relative URLs to the external owner", async () => {
+  it("passes a PR Cockpit pull request URL to its external owner", async () => {
+    const opened: string[] = [];
+    const open = createExternalUrlOpener({
+      open: async (url) => {
+        opened.push(url);
+      },
+    });
+
+    await open("prcockpit://pr/acme/api/12");
+
+    expect(opened).toEqual(["prcockpit://pr/acme/api/12"]);
+  });
+
+  it("does not hand other or relative URLs to the external owner", async () => {
     const opened: string[] = [];
     const open = createExternalUrlOpener({
       open: async (url) => {
@@ -31,7 +44,9 @@ describe("desktop opener", () => {
       "/docs",
       null,
     ]) {
-      await expect(open(input)).rejects.toThrow("Only HTTP(S) URLs can open externally.");
+      await expect(open(input)).rejects.toThrow(
+        "Only HTTP(S) and PR Cockpit URLs can open externally.",
+      );
     }
 
     expect(opened).toEqual([]);

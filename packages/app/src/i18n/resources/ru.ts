@@ -617,6 +617,11 @@ export const ru: TranslationResources = {
       updateHost: "Обновите хост, чтобы использовать нативный рендерер терминала.",
       unableToSubscribe: "Не удалось подключиться к терминалу",
     },
+    linkedPullRequests: {
+      title: "Связанные PR",
+      collapse: "Свернуть связанные PR",
+      expand: "Развернуть связанные PR",
+    },
     tabs: {
       loading: "Загрузка...",
       modified: "Несохранённые изменения",

@@ -616,6 +616,11 @@ export const ja: TranslationResources = {
       updateHost: "ネイティブターミナルを使用するにはホストを更新してください。",
       unableToSubscribe: "ターミナルに接続できません",
     },
+    linkedPullRequests: {
+      title: "リンクされたプルリクエスト",
+      collapse: "リンクされたプルリクエストを折りたたむ",
+      expand: "リンクされたプルリクエストを展開",
+    },
     tabs: {
       loading: "読み込み中...",
       modified: "未保存の変更",

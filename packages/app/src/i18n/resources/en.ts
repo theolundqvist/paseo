@@ -607,6 +607,11 @@ export const en = {
       updateHost: "Update the host to use the native terminal renderer.",
       unableToSubscribe: "Unable to subscribe to terminal",
     },
+    linkedPullRequests: {
+      title: "Linked pull requests",
+      collapse: "Collapse linked pull requests",
+      expand: "Expand linked pull requests",
+    },
     tabs: {
       loading: "Loading...",
       modified: "Unsaved changes",

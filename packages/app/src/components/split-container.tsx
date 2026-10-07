@@ -91,6 +91,7 @@ import type { WorkspaceTab } from "@/workspace-tabs/model";
 import { RenderProfile } from "@/utils/render-profiler";
 import { isNative } from "@/constants/platform";
 import { panelTargetSupportsHost } from "@/plugins/workspace-panels/locations";
+import { PrCockpitOverlay } from "@/pr-cockpit/overlay";
 
 interface SplitContainerProps {
   layout: WorkspaceLayout;
@@ -1215,6 +1216,8 @@ function SplitPaneView({
   );
   const paneTabs = useMemo(() => paneState.tabs.map((tab) => tab.descriptor), [paneState.tabs]);
   const activeTabDescriptor = paneState.activeTab?.descriptor ?? null;
+  const activeAgentId =
+    activeTabDescriptor?.target.kind === "agent" ? activeTabDescriptor.target.agentId : null;
   const desktopTabRowItems = useMemo<WorkspaceDesktopTabRowItem[]>(
     () =>
       paneTabs.map((tab) => ({
@@ -1351,6 +1354,11 @@ function SplitPaneView({
             isPaneFocused={isFocused}
             onFocusPane={stableOnFocusPane}
             buildPaneContentModel={buildPaneContentModel}
+          />
+          <PrCockpitOverlay
+            serverId={normalizedServerId}
+            agentId={activeAgentId}
+            isPointerSuspended={activeDragTabId !== null}
           />
           <SplitDropZone paneId={pane.id} active={showDropZones} preview={dropPreview} />
         </View>

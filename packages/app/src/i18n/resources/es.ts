@@ -616,6 +616,11 @@ export const es: TranslationResources = {
       updateHost: "Actualiza el host para usar el renderizador de terminal nativo.",
       unableToSubscribe: "No se puede suscribir al terminal",
     },
+    linkedPullRequests: {
+      title: "Pull requests vinculadas",
+      collapse: "Contraer pull requests vinculadas",
+      expand: "Expandir pull requests vinculadas",
+    },
     tabs: {
       loading: "Cargando...",
       modified: "Cambios sin guardar",

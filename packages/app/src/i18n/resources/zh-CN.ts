@@ -610,6 +610,11 @@ export const zhCN: TranslationResources = {
       updateHost: "请更新主机以使用原生终端渲染器。",
       unableToSubscribe: "无法订阅 Terminal",
     },
+    linkedPullRequests: {
+      title: "关联的拉取请求",
+      collapse: "收起关联的拉取请求",
+      expand: "展开关联的拉取请求",
+    },
     tabs: {
       loading: "正在加载...",
       modified: "未保存的更改",
