@@ -45,17 +45,18 @@ jobs:
           NODE_OPTIONS: --max-old-space-size=4096
         # Without signing credentials electron-builder ad-hoc signs arm64. The publish
         # override points the bundled app-update.yml at this fork so the app never
-        # downloads an upstream getpaseo release. The paseoFork* metadata switches the
+        # downloads an upstream getpaseo release. dist/fork-release.json switches the
         # packaged app to the fork updater, which installs newer fork releases itself.
         run: |
           set -euo pipefail
+          mkdir -p packages/desktop/dist
+          printf '{"repository":"%s","tag":"fork-%s"}\n' "${{ github.repository }}" "$(git rev-parse --short=7 HEAD)" \
+            > packages/desktop/dist/fork-release.json
           npm run build:desktop -- --publish never --mac --arm64 \
             -c.mac.notarize=false \
             -c.mac.hardenedRuntime=false \
             "-c.publish.owner=${{ github.repository_owner }}" \
-            "-c.publish.repo=${{ github.event.repository.name }}" \
-            "-c.extraMetadata.paseoForkRepository=${{ github.repository }}" \
-            "-c.extraMetadata.paseoForkRelease=fork-$(git rev-parse --short=7 HEAD)"
+            "-c.publish.repo=${{ github.event.repository.name }}"
 
       - name: Verify updater feed
         shell: bash
@@ -66,8 +67,8 @@ jobs:
           grep -Fxq "owner: ${{ github.repository_owner }}" "$app_update"
           grep -Fxq "repo: ${{ github.event.repository.name }}" "$app_update"
           node -e '
-            const manifest = JSON.parse(require("@electron/asar").extractFile(process.argv[1], "package.json"));
-            if (manifest.paseoForkRelease !== process.argv[2]) throw new Error(`stamped ${manifest.paseoForkRelease}`);
+            const stamp = JSON.parse(require("@electron/asar").extractFile(process.argv[1], "dist/fork-release.json"));
+            if (stamp.tag !== process.argv[2]) throw new Error(`stamped ${stamp.tag}`);
           ' packages/desktop/release/mac-arm64/Paseo.app/Contents/Resources/app.asar "fork-$(git rev-parse --short=7 HEAD)"
 
       - name: Upload packaged smoke diagnostics

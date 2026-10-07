@@ -1,6 +1,6 @@
 import { execFile, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { createWriteStream, openSync, readFileSync } from "node:fs";
+import { createWriteStream, existsSync, openSync, readFileSync } from "node:fs";
 import { mkdir, readdir, rm } from "node:fs/promises";
 import path from "node:path";
 import { Readable, Transform } from "node:stream";
@@ -49,13 +49,11 @@ interface PreparedUpdate {
   bundlePath: string;
 }
 
+// Written by the fork release workflow; absent from upstream and local builds.
 export function readForkRelease(): ForkRelease | null {
-  const manifest = JSON.parse(readFileSync(path.join(app.getAppPath(), "package.json"), "utf8"));
-  const { paseoForkRepository, paseoForkRelease } = manifest;
-  if (typeof paseoForkRepository !== "string" || typeof paseoForkRelease !== "string") {
-    return null;
-  }
-  return { repository: paseoForkRepository, tag: paseoForkRelease };
+  const stamp = path.join(app.getAppPath(), "dist", "fork-release.json");
+  if (!existsSync(stamp)) return null;
+  return JSON.parse(readFileSync(stamp, "utf8")) as ForkRelease;
 }
 
 // The releases API lists by creation order, which diverges from publish order
