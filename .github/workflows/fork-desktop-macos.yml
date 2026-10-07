@@ -45,14 +45,17 @@ jobs:
           NODE_OPTIONS: --max-old-space-size=4096
         # Without signing credentials electron-builder ad-hoc signs arm64. The publish
         # override points the bundled app-update.yml at this fork so the app never
-        # downloads an upstream getpaseo release.
+        # downloads an upstream getpaseo release. The paseoFork* metadata switches the
+        # packaged app to the fork updater, which installs newer fork releases itself.
         run: |
           set -euo pipefail
           npm run build:desktop -- --publish never --mac --arm64 \
             -c.mac.notarize=false \
             -c.mac.hardenedRuntime=false \
             "-c.publish.owner=${{ github.repository_owner }}" \
-            "-c.publish.repo=${{ github.event.repository.name }}"
+            "-c.publish.repo=${{ github.event.repository.name }}" \
+            "-c.extraMetadata.paseoForkRepository=${{ github.repository }}" \
+            "-c.extraMetadata.paseoForkRelease=fork-$(git rev-parse --short=7 HEAD)"
 
       - name: Verify updater feed
         shell: bash
@@ -62,6 +65,10 @@ jobs:
           cat "$app_update"
           grep -Fxq "owner: ${{ github.repository_owner }}" "$app_update"
           grep -Fxq "repo: ${{ github.event.repository.name }}" "$app_update"
+          node -e '
+            const manifest = JSON.parse(require("@electron/asar").extractFile(process.argv[1], "package.json"));
+            if (manifest.paseoForkRelease !== process.argv[2]) throw new Error(`stamped ${manifest.paseoForkRelease}`);
+          ' packages/desktop/release/mac-arm64/Paseo.app/Contents/Resources/app.asar "fork-$(git rev-parse --short=7 HEAD)"
 
       - name: Upload packaged smoke diagnostics
         if: failure()
@@ -72,8 +79,8 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-      # Only installers are published. Without a *-mac.yml manifest on any fork
-      # release, the in-app updater never finds an installable update.
+      # Only installers are published, never a *-mac.yml manifest: the fork updater
+      # reads the zip and its digest from the releases API instead.
       - name: Publish fork prerelease
         shell: bash
         env:
@@ -97,6 +104,6 @@ jobs:
               --target "$sha" \
               --prerelease \
               --title "Paseo fork $tag" \
-              --notes "Unsigned Apple Silicon build of \`$SOURCE_REF\` at $sha. After installing, run \`xattr -dr com.apple.quarantine /Applications/Paseo.app\`."
+              --notes "Unsigned Apple Silicon build of \`$SOURCE_REF\` at $sha. On first install, run \`xattr -dr com.apple.quarantine /Applications/Paseo.app\`; later releases install themselves through Settings → Updates."
           fi
           echo "Published https://github.com/$GH_REPO/releases/tag/$tag"

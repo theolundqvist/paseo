@@ -15,6 +15,7 @@ import {
   type RuntimeUpdateCheckResult,
   type RuntimeUpdateInfo,
 } from "./app-update-service.js";
+import { ForkMacAppUpdateRuntime, readForkRelease } from "./fork-mac-app-update-runtime.js";
 import {
   bucketFromStagingUserId,
   rolloutManifestSchema,
@@ -222,8 +223,10 @@ class ElectronAppUpdateRuntime implements AppUpdateRuntime {
   }
 }
 
+const forkRelease = readForkRelease();
+
 const appUpdateService = createAppUpdateService({
-  runtime: new ElectronAppUpdateRuntime(),
+  runtime: forkRelease ? new ForkMacAppUpdateRuntime(forkRelease) : new ElectronAppUpdateRuntime(),
   isPackaged: () => app.isPackaged,
   now: () => Date.now(),
   bucket: async () => bucketFromStagingUserId(await getStagingUserId()),
