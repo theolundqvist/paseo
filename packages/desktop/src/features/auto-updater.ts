@@ -227,7 +227,8 @@ const forkRelease = readForkRelease();
 
 const appUpdateService = createAppUpdateService({
   runtime: forkRelease ? new ForkMacAppUpdateRuntime(forkRelease) : new ElectronAppUpdateRuntime(),
-  isPackaged: () => app.isPackaged,
+  // A packaging smoke must not replace its candidate with the published release on quit.
+  isPackaged: () => app.isPackaged && process.env.PASEO_DESKTOP_SMOKE !== "1",
   now: () => Date.now(),
   bucket: async () => bucketFromStagingUserId(await getStagingUserId()),
   reportCheckError: (error) => {
