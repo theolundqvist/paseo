@@ -157,6 +157,7 @@ function createDefaultDaemonEnv(extraEnv) {
 function createIsolatedDesktopEnv({ home, listen, userData, cdpPort }) {
   return {
     ...createDefaultDaemonEnv({ HOME: home, USERPROFILE: home }),
+    PASEO_DESKTOP_SMOKE: "1",
     PASEO_HOME: home,
     PASEO_LISTEN: listen,
     PASEO_ELECTRON_USER_DATA_DIR: userData,
