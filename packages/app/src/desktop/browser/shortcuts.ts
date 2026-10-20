@@ -35,6 +35,13 @@ interface BrowserShortcutPolicyInput {
   isDesktop: boolean;
 }
 
+export function isBrowserShortcutKey(event: KeyboardShortcutInput, key: "l" | "r"): boolean {
+  if (event.altKey || event.shiftKey || (!event.metaKey && !event.ctrlKey)) {
+    return false;
+  }
+  return event.key.toLowerCase() === key || event.code === `Key${key.toUpperCase()}`;
+}
+
 export function shouldPublishBrowserShortcutPolicy(input: {
   isBrowserInput: boolean;
   nextChordState: ChordState;
@@ -119,7 +126,7 @@ function isBrowserNativeNavigationPrefix(prefix: BrowserShortcutPrefix, isMac: b
     !prefix.control &&
     !prefix.alt &&
     !prefix.shift &&
-    (prefix.code === "BracketLeft" || prefix.code === "BracketRight")
+    (prefix.code === "BracketLeft" || prefix.code === "BracketRight" || prefix.code === "KeyL")
   );
 }
 

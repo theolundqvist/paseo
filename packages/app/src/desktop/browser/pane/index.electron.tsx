@@ -57,6 +57,7 @@ import {
   isElectronRuntime,
   type DesktopBrowserShortcutEvent,
 } from "@/desktop/host";
+import { isBrowserShortcutKey } from "@/desktop/browser/shortcuts";
 import {
   type BrowserViewport,
   createFixedBrowserViewport,
@@ -78,6 +79,8 @@ import {
   type BrowserElementSelection,
   type ElementSelectorOutcome,
 } from "./element-selector.electron";
+
+const BROWSER_KEYBOARD_OWNER_DATASET = { browserKeyboardOwner: "true" };
 
 type ElectronWebview = HTMLElement & {
   canGoBack?: () => boolean;
@@ -408,17 +411,6 @@ function getTextInputNativeElement(
 ): HTMLInputElement | null {
   const native = current?.getNativeRef();
   return native instanceof HTMLInputElement ? native : null;
-}
-
-function isBrowserShortcutKey(event: KeyboardEvent, key: "l" | "r"): boolean {
-  if (event.altKey || event.shiftKey) {
-    return false;
-  }
-  if (!event.metaKey && !event.ctrlKey) {
-    return false;
-  }
-  const eventKey = event.key.toLowerCase();
-  return eventKey === key || event.code === `Key${key.toUpperCase()}`;
 }
 
 function isDesktopBrowserShortcutEvent(payload: unknown): payload is DesktopBrowserShortcutEvent {
@@ -1433,7 +1425,10 @@ export function BrowserPane({
   }
 
   return (
-    <View style={styles.container}>
+    <View
+      style={styles.container}
+      dataSet={isInteractive ? BROWSER_KEYBOARD_OWNER_DATASET : undefined}
+    >
       <View style={styles.chromeRow}>
         <View style={styles.chromeLeft}>
           <ToolbarButton

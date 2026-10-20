@@ -478,11 +478,35 @@ function applyTerminalsChanged(input: {
       (terminal) => terminal.workspaceId === route.workspaceId,
     );
 
-    input.queryClient.setQueryData<ListTerminalsPayload>(query.queryKey, (current) => ({
-      cwd: input.message.payload.cwd,
-      terminals: matchingTerminals,
-      requestId: current?.requestId ?? `terminals-changed-${Date.now()}`,
-    }));
+    const next = input.queryClient.setQueryData<ListTerminalsPayload>(query.queryKey, (current) => {
+      const cwdByTerminalId = new Map(
+        current?.terminals.map((terminal) => [terminal.id, terminal.cwd]),
+      );
+      return {
+        cwd: input.message.payload.cwd,
+        terminals: matchingTerminals.map((terminal) => {
+          const cwd = cwdByTerminalId.get(terminal.id);
+          if (!cwd) return terminal;
+          return {
+            id: terminal.id,
+            name: terminal.name,
+            workspaceId: terminal.workspaceId,
+            title: terminal.title,
+            activity: terminal.activity,
+            cwd,
+          };
+        }),
+        requestId: current?.requestId ?? `terminals-changed-${Date.now()}`,
+      };
+    });
+    // Pushes omit immutable launch cwd. Preserve known metadata and fetch it
+    // only for newly advertised terminals, including after an empty list response.
+    if (next?.terminals.some((terminal) => !terminal.cwd)) {
+      void input.queryClient.invalidateQueries(
+        { queryKey: query.queryKey, exact: true },
+        { cancelRefetch: false },
+      );
+    }
   }
 }
 

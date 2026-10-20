@@ -1082,11 +1082,15 @@ const SHORTCUT_BINDINGS: readonly ShortcutBinding[] = [
     id: "workspace-last-cmd-l-mac",
     action: "workspace.navigate.last",
     combo: "Cmd+L",
-    when: { mac: true, commandCenter: false },
+    when: {
+      mac: true,
+      commandCenter: false,
+    },
     help: {
       id: "workspace-last",
       section: "workspaces",
       label: "Last workspace",
+      note: "Browser panes keep Cmd+L for the address bar.",
     },
   },
   {

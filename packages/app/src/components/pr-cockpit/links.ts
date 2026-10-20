@@ -15,7 +15,63 @@ export class CockpitLinkScanner {
   private token = "";
   private tokenOverflow = false;
   private control = "";
+  private controlOverflow = false;
   private mode: "text" | "escape" | "csi" | "osc" | "osc-escape" = "text";
+  private publishedLinks: string[] = [];
+  private publishedSize = 0;
+  private publishedPending: string | null = null;
+
+  constructor(state?: TerminalState) {
+    if (!state) return;
+    // A cursor inside existing content must not split a visible URL into a
+    // different target. Only the blank suffix of a logical line is appendable.
+    let cursorAtLineEnd = true;
+    for (let index = state.cursor.row; index < state.grid.length; index++) {
+      const startCol = index === state.cursor.row ? state.cursor.col : 0;
+      const hasSuffix = state.grid[index]!.some(
+        (cell, col) => col >= startCol && /\S/.test(cell.char),
+      );
+      if (hasSuffix) {
+        cursorAtLineEnd = false;
+        break;
+      }
+      if (!state.gridWrapped?.[index]) break;
+    }
+    let pendingToken = "";
+    let pendingOverflow = false;
+    for (const [rows, wrapped] of [
+      [state.scrollback, state.scrollbackWrapped],
+      [state.grid, state.gridWrapped],
+    ] as const) {
+      rows.forEach((row, index) => {
+        const isPendingCursorRow =
+          cursorAtLineEnd && rows === state.grid && index === state.cursor.row;
+        const cursorCol = Math.min(state.cursor.col, row.length);
+        row.forEach((cell, col) => {
+          if (isPendingCursorRow && col === cursorCol) {
+            pendingToken = this.token;
+            pendingOverflow = this.tokenOverflow;
+            this.token = "";
+            this.tokenOverflow = false;
+          }
+          this.write(cell.char);
+        });
+        if (isPendingCursorRow && cursorCol === row.length) {
+          pendingToken = this.token;
+          pendingOverflow = this.tokenOverflow;
+          this.token = "";
+          this.tokenOverflow = false;
+        }
+        if (!wrapped?.[index]) this.write("\n");
+      });
+    }
+    this.finishToken();
+    // Snapshot columns are cells (not string offsets); xterm's cursor points at
+    // the next write, including col === cols when a soft wrap is still pending.
+    // Padding and rows below it must not commit the cursor-adjacent token.
+    this.token = pendingToken;
+    this.tokenOverflow = pendingOverflow;
+  }
 
   write(text: string): void {
     for (const char of text) {
@@ -36,6 +92,7 @@ export class CockpitLinkScanner {
         else if (char === "]") {
           this.finishToken();
           this.control = "";
+          this.controlOverflow = false;
           this.mode = "osc";
         } else {
           this.finishToken();
@@ -48,6 +105,7 @@ export class CockpitLinkScanner {
       else if (char === "\x9d") {
         this.finishToken();
         this.control = "";
+        this.controlOverflow = false;
         this.mode = "osc";
       } else if (TOKEN_CHARACTER.test(char)) {
         if (this.token.length < MAX_TOKEN_LENGTH) this.token += char;
@@ -57,28 +115,49 @@ export class CockpitLinkScanner {
   }
 
   getLinks(): string[] {
-    const links = [...this.links];
-    // A final printed URL need not have a newline. Do not commit it yet: the next
-    // frame could extend PR 12 to PR 123, and must not leave a bogus #12 chip.
-    const pending = this.tokenOverflow ? null : cockpitUrl(this.token);
-    if (pending && !this.links.has(pending)) links.push(pending);
-    return links;
+    const candidate = this.tokenOverflow ? null : cockpitUrl(this.token);
+    const pending = candidate && !this.links.has(candidate) ? candidate : null;
+    if (this.publishedSize === this.links.size && this.publishedPending === pending) {
+      return this.publishedLinks;
+    }
+    // Committing the visible pending URL at a delimiter does not change the set.
+    const committedPending =
+      this.publishedPending !== null &&
+      pending === null &&
+      this.links.size === this.publishedSize + 1 &&
+      this.links.has(this.publishedPending);
+    if (!committedPending) {
+      this.publishedLinks = [...this.links];
+      if (pending) this.publishedLinks.push(pending);
+    }
+    this.publishedSize = this.links.size;
+    this.publishedPending = pending;
+    return this.publishedLinks;
   }
 
   private writeOscCharacter(char: string): void {
     const isTerminator =
       char === "\x07" || char === "\x9c" || (this.mode === "osc-escape" && char === "\\");
+    if (this.mode === "osc-escape" && char !== "\\") this.appendControl("\x1b");
     if (isTerminator) {
-      const target = /^8;[^;]*;(.*)$/.exec(this.control)?.[1];
-      if (target) this.add(target);
+      const target = this.controlOverflow ? null : /^8;[^;]*;([\s\S]*)$/.exec(this.control)?.[1];
+      // Explicit targets are not prose: punctuation or controls must not be
+      // trimmed into a different URL, including a final newline matched by `$`.
+      if (target && COCKPIT_URL.exec(target)?.[0] === target) this.links.add(target);
       this.control = "";
+      this.controlOverflow = false;
       this.mode = "text";
     } else if (char === "\x1b") {
       this.mode = "osc-escape";
     } else {
-      if (this.control.length <= MAX_TOKEN_LENGTH) this.control += char;
+      this.appendControl(char);
       this.mode = "osc";
     }
+  }
+
+  private appendControl(char: string): void {
+    if (this.control.length < MAX_TOKEN_LENGTH) this.control += char;
+    else this.controlOverflow = true;
   }
 
   private add(token: string): void {
@@ -103,11 +182,17 @@ export function createTerminalCockpitLinks(initialSnapshot?: TerminalState | nul
   let scanner = new CockpitLinkScanner();
   let decoder = new TextDecoder();
   let links: readonly string[] = [];
+  let scannedLinks: readonly string[] | null = null;
   const listeners = new Set<() => void>();
 
   function publish(): void {
     const next = scanner.getLinks();
-    if (next.length === links.length && next.every((url, index) => url === links[index])) return;
+    if (next === scannedLinks) return;
+    scannedLinks = next;
+    if (next.length === links.length) {
+      const previous = new Set(links);
+      if (next.every((url) => previous.has(url))) return;
+    }
     links = next;
     for (const listener of listeners) listener();
   }
@@ -120,17 +205,8 @@ export function createTerminalCockpitLinks(initialSnapshot?: TerminalState | nul
   }
 
   function snapshot(state: TerminalState): void {
-    scanner = new CockpitLinkScanner();
+    scanner = new CockpitLinkScanner(state);
     decoder = new TextDecoder();
-    for (const [rows, wrapped] of [
-      [state.scrollback, state.scrollbackWrapped],
-      [state.grid, state.gridWrapped],
-    ] as const) {
-      rows.forEach((row, index) => {
-        scanner.write(row.map((cell) => cell.char).join(""));
-        if (!wrapped?.[index]) scanner.write("\n");
-      });
-    }
     publish();
   }
 

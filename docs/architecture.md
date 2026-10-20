@@ -201,7 +201,7 @@ The desktop does not manage agent skills. It retains one compatibility reader fo
 `skill-selection.json`, imports that preference into its managed local daemon, then deletes the old
 file after the daemon confirms persistence.
 
-Mac shortcuts follow the terminal setup: ⌘K/⌘J choose a workspace, ⌘L returns to the previous workspace, and ⌘1–9 or ⌘⇧←/→ select tabs. ⌘N/⌘⇧N split right/down; ⌘P opens a detected pane PR in PR Cockpit, ⌘G opens lazygit, and ⌘⇧F searches the focused terminal. Terminal ⌘S sends Escape, `:w`, Enter; Shift+Enter sends Escape, Enter. Control+h/j/k/l remain available to terminal/editor applications. Clipboard paste stays native; no tmux image bridge is added.
+Mac shortcuts follow the terminal setup: ⌘K/⌘J choose a workspace, ⌘L returns to the previous workspace (browser panes retain address-bar focus), and ⌘1–9 or ⌘⇧←/→ select tabs. ⌘N/⌘⇧N split right/down; ⌘P opens a detected pane PR in PR Cockpit, ⌘G opens lazygit, and ⌘⇧F searches the focused terminal. Git tools use the focused agent's cwd or terminal's launch cwd, not a synthetic grouping directory; a shell's later `cd` is not tracked. Worktree creation retains that checkout or subdirectory through project selection. Terminal ⌘S sends Escape, `:w`, Enter; Shift+Enter sends Escape, Enter. Control+h/j/k/l remain available to terminal/editor applications. Clipboard paste stays native; no tmux image bridge is added.
 
 **Multi-window (hybrid land-on model).** `createWindow()` in `main.ts` is reusable: `⌘⌃⇧N`/File→New Window (`⌘⇧N` splits a pane), relaunching the app (`second-instance`), and the sidebar "Open in new window" action each open a fresh `BrowserWindow`. Every window shows the full sidebar — there is no per-window project ownership or filtering. "Land on a project" is delivered by a per-`webContents` `PendingOpenProjectStore`: each window pulls its own pending project path on mount (`paseo:get-pending-open-project`) and runs the normal open-project flow, identical to a CLI `paseo <path>` launch.
 
@@ -298,6 +298,8 @@ searches that workspace and returns relative entries. Clients may prepend their 
 recent-project list for bare queries, but must not parse filesystem query syntax or re-filter a
 correlated daemon response. The legacy `directories` response field remains a projection of the
 typed `entries` list.
+
+Workspace-scoped terminal lists and subscription snapshots enumerate workspace-owned terminals across launch directories, not by the workspace's grouping path. Membership events invalidate in-flight enumeration before publication so clients do not prune panes from a known-stale snapshot. Unscoped directory subscriptions retain their existing directory filtering.
 
 **Binary frames (terminal stream protocol):**
 

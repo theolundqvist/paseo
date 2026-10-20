@@ -192,6 +192,7 @@ import { getIsElectron, isNative, isWeb } from "@/constants/platform";
 import type { SurfaceBackdrop } from "@/styles/surface-backdrop";
 import { buildHostRootRoute, buildSettingsHostRoute } from "@/utils/host-routes";
 import { useWorkspaceTerminals } from "@/screens/workspace/terminals/use-workspace-terminals";
+import { useFocusedWorkspaceDirectory } from "@/hooks/use-focused-workspace-directory";
 import type { TerminalProfile } from "@getpaseo/protocol/messages";
 import {
   WorkspaceHeaderMenuDesktop,
@@ -1579,6 +1580,11 @@ function WorkspaceScreenContent({
     (state) => state.sessions[normalizedServerId]?.serverInfo?.features?.providersSnapshot === true,
   );
   const workspaceDirectory = workspaceDescriptor?.workspaceDirectory || null;
+  const focusedWorkspaceDirectory = useFocusedWorkspaceDirectory({
+    serverId: normalizedServerId,
+    workspaceId: normalizedWorkspaceId,
+    enabled: isRouteFocused,
+  });
   const isMissingWorkspaceDirectory = Boolean(workspaceDescriptor) && !workspaceDirectory;
   const [isImportSheetVisible, setIsImportSheetVisible] = useState(false);
   const canOpenImportSheet = [client, isConnected, workspaceDirectory].every(Boolean);
@@ -2387,10 +2393,21 @@ function WorkspaceScreenContent({
     [openWorkspaceDraftTab],
   );
 
-  const handleCreateTerminal = useStableEvent((input?: { paneId?: string; command?: string }) => {
+  const handleCreateTerminal = useStableEvent((input?: { paneId?: string }) => {
     createTerminal({
       destination: input?.paneId ? { kind: "open", paneId: input.paneId } : { kind: "open" },
-      command: input?.command,
+    });
+  });
+
+  const handleOpenLazygit = useStableEvent(() => {
+    if (!focusedWorkspaceDirectory) {
+      handleWorkspacePathUnavailable();
+      return;
+    }
+    createTerminal({
+      destination: { kind: "open", paneId: focusedPaneTabState.pane?.id },
+      command: "lazygit",
+      cwd: focusedWorkspaceDirectory,
     });
   });
 
@@ -3131,7 +3148,7 @@ function WorkspaceScreenContent({
           handleCreateTerminal();
           return true;
         case "workspace.lazygit.open":
-          handleCreateTerminal({ paneId: focusedPaneTabState.pane?.id, command: "lazygit" });
+          handleOpenLazygit();
           return true;
         case "workspace.browser.new":
           handleCreateBrowserTab();
@@ -3175,6 +3192,7 @@ function WorkspaceScreenContent({
       handleCreateNewTab,
       handleCreateTerminal,
       focusedPaneTabState.pane?.id,
+      handleOpenLazygit,
       navigateToTabId,
       tabs,
     ],

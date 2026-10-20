@@ -1,12 +1,11 @@
 import { useCallback, useId, useState, type MouseEvent } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Pressable, ScrollView, Text, View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import { isWeb } from "@/constants/platform";
 import { usePaneFocus } from "@/panels/pane-context";
 import { useRetainedPanelActive } from "@/components/retained-panel";
 import { useKeyboardActionHandler } from "@/hooks/use-keyboard-action-handler";
 import { openExternalUrl } from "@/utils/open-external-url";
-import { ScrollView } from "@/components/ui/scroll-view";
 
 interface CockpitLinkProps {
   url: string;

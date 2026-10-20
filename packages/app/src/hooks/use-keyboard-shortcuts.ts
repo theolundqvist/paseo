@@ -16,6 +16,7 @@ import {
 import { resolveKeyboardFocusScope } from "@/keyboard/focus-scope";
 import {
   buildBrowserKeyboardPolicy,
+  isBrowserShortcutKey,
   parseBrowserShortcutInput,
   shouldPublishBrowserShortcutPolicy,
 } from "@/desktop/browser/shortcuts";
@@ -334,7 +335,13 @@ export function useKeyboardShortcuts({
   // any in-progress chord. Stable events let them read the latest render instead
   // of being re-registered whenever a route, callback, or selection changes.
   const handleKeyDown = useStableEvent((event: KeyboardEvent) => {
-    if (!shouldHandle()) {
+    if (!shouldHandle() || event.defaultPrevented) {
+      return;
+    }
+    if (
+      isBrowserShortcutKey(event, "l") &&
+      document.querySelector('[data-browser-keyboard-owner="true"]')
+    ) {
       return;
     }
 
