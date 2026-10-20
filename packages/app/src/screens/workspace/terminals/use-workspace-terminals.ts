@@ -26,6 +26,7 @@ export type TerminalTabDestination =
 interface PendingTerminalCreateInput {
   destination: TerminalTabDestination;
   profile?: TerminalProfile;
+  command?: string;
 }
 
 interface UseWorkspaceTerminalsInput {
@@ -142,6 +143,7 @@ export function useWorkspaceTerminals(input: UseWorkspaceTerminalsInput) {
           })
         : await client.createTerminal(workspaceDirectory, undefined, undefined, {
             workspaceId: normalizedWorkspaceId || undefined,
+            command: _input.command,
           });
       // The daemon reports a failed spawn (e.g. a profile command that isn't
       // installed) via payload.error with a null terminal. Surface it instead

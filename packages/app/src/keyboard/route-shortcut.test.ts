@@ -40,6 +40,12 @@ describe("routeKeyboardShortcut — dispatch passthroughs", () => {
     ["worktree.new", { id: "worktree.new", scope: "sidebar" }],
     ["workspace.terminal.new", { id: "workspace.terminal.new", scope: "workspace" }],
     ["workspace.tab.close.current", { id: "workspace.tab.close-current", scope: "workspace" }],
+    ["workspace.tab.rename.current", { id: "workspace.tab.rename-current", scope: "workspace" }],
+    ["terminal.find", { id: "terminal.find", scope: "workspace" }],
+    ["terminal.save", { id: "terminal.input.send", scope: "workspace", data: "\u001b:w\r" }],
+    ["terminal.alt-enter", { id: "terminal.input.send", scope: "workspace", data: "\u001b\r" }],
+    ["workspace.lazygit.open", { id: "workspace.lazygit.open", scope: "workspace" }],
+    ["workspace.pr-cockpit.open", { id: "workspace.pr-cockpit.open", scope: "workspace" }],
     ["sidebar.toggle.right", { id: "sidebar.toggle.right", scope: "sidebar" }],
     ["workspace.pane.split.right", { id: "workspace.pane.split.right", scope: "workspace" }],
     ["workspace.pane.split.down", { id: "workspace.pane.split.down", scope: "workspace" }],
@@ -120,6 +126,14 @@ describe("routeKeyboardShortcut — workspace.tab.navigate", () => {
         makeCtx(),
       ),
     ).toEqual<ShortcutAction>({ kind: "none" });
+  });
+});
+
+describe("routeKeyboardShortcut — workspace.navigate.last", () => {
+  it("switches to the previous workspace instead of restoring the current startup destination", () => {
+    expect(
+      routeKeyboardShortcut({ action: "workspace.navigate.last", payload: null }, makeCtx()),
+    ).toEqual<ShortcutAction>({ kind: "navigate-previous-workspace" });
   });
 });
 

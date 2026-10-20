@@ -121,15 +121,6 @@ interface NonMatchingShortcutCase {
   context?: Partial<KeyboardShortcutContext>;
 }
 
-interface HelpSectionCase {
-  name: string;
-  context: {
-    isMac: boolean;
-    isDesktop: boolean;
-  };
-  expectedKeys: Record<string, string[]>;
-}
-
 describe("keyboard-shortcuts", () => {
   const matchingCases: MatchingShortcutCase[] = [
     {
@@ -163,8 +154,8 @@ describe("keyboard-shortcuts", () => {
       action: "workspace.new",
     },
     {
-      name: "matches Cmd+P to search workspace files on mac",
-      event: { key: "p", code: "KeyP", metaKey: true },
+      name: "matches Cmd+Alt+P to search workspace files on mac",
+      event: { key: "p", code: "KeyP", metaKey: true, altKey: true },
       context: { isMac: true, commandCenterOpen: false },
       action: "command-center.files",
     },
@@ -188,15 +179,15 @@ describe("keyboard-shortcuts", () => {
       payload: { index: 2 },
     },
     {
-      name: "matches workspace index jump on desktop via Mod+digit",
-      event: { key: "2", code: "Digit2", metaKey: true },
+      name: "matches workspace index jump on desktop via Cmd+Alt+digit",
+      event: { key: "2", code: "Digit2", metaKey: true, altKey: true },
       context: { isMac: true, isDesktop: true },
       action: "workspace.navigate.index",
       payload: { index: 2 },
     },
     {
-      name: "matches tab index jump on mac desktop via Cmd+Alt+digit",
-      event: { key: "@", code: "Digit2", metaKey: true, altKey: true },
+      name: "matches tab index jump on mac desktop via Cmd+digit",
+      event: { key: "2", code: "Digit2", metaKey: true },
       context: { isMac: true, isDesktop: true },
       action: "workspace.tab.navigate.index",
       payload: { index: 2 },
@@ -284,10 +275,11 @@ describe("keyboard-shortcuts", () => {
       action: "workspace.pane.split.down",
     },
     {
-      name: "matches Cmd+Shift+ArrowRight to focus pane right on macOS",
+      name: "matches Cmd+Shift+ArrowRight to switch to the next tab on macOS",
       event: { key: "ArrowRight", code: "ArrowRight", metaKey: true, shiftKey: true },
       context: { isMac: true },
-      action: "workspace.pane.focus.right",
+      action: "workspace.tab.navigate.relative",
+      payload: { delta: 1 },
     },
     {
       name: "matches Cmd+Shift+Alt+ArrowDown to move tab down on macOS",
@@ -302,8 +294,8 @@ describe("keyboard-shortcuts", () => {
       action: "workspace.pane.move-tab.down",
     },
     {
-      name: "matches Cmd+Shift+W to close pane on macOS",
-      event: { key: "W", code: "KeyW", metaKey: true, shiftKey: true },
+      name: "matches Cmd+Alt+Shift+W to close pane on macOS",
+      event: { key: "W", code: "KeyW", metaKey: true, altKey: true, shiftKey: true },
       context: { isMac: true },
       action: "workspace.pane.close",
     },
@@ -530,13 +522,13 @@ describe("keyboard-shortcuts", () => {
       context: { isMac: false },
     },
     {
-      name: "keeps Cmd+Shift+ArrowRight available for message input selection",
-      event: { key: "ArrowRight", code: "ArrowRight", metaKey: true, shiftKey: true },
+      name: "keeps Cmd+Shift+ArrowUp available for message input selection",
+      event: { key: "ArrowUp", code: "ArrowUp", metaKey: true, shiftKey: true },
       context: { isMac: true, focusScope: "message-input" },
     },
     {
-      name: "keeps Cmd+Shift+ArrowLeft available for generic editable selection",
-      event: { key: "ArrowLeft", code: "ArrowLeft", metaKey: true, shiftKey: true },
+      name: "keeps Cmd+Shift+ArrowDown available for generic editable selection",
+      event: { key: "ArrowDown", code: "ArrowDown", metaKey: true, shiftKey: true },
       context: { isMac: true, focusScope: "editable" },
     },
     {
@@ -565,8 +557,8 @@ describe("keyboard-shortcuts", () => {
 
   // A rebound pane-focus shortcut has to fire wherever the user is typing.
   // Its default combo carries `editable: false` so that Cmd+Shift+Arrow keeps
-  // selecting text (the two cases above), and that guard describes the default
-  // combo rather than the action, so it must not survive the rebind.
+  // selecting text. The editable guard on those vertical-arrow defaults describes
+  // the combo rather than the action, so it must not survive the rebind.
   describe("a rebound pane-focus shortcut", () => {
     const PANE_FOCUS_DOWN_BINDING = "workspace-pane-focus-down-cmd-shift-down";
     // macOS emits U+2206 for Option+J; the stored combo comes from the code.
@@ -698,6 +690,176 @@ describe("keyboard-shortcuts", () => {
   });
 });
 
+describe("macOS tmux shortcut parity", () => {
+  const platform = { isMac: true, isDesktop: true };
+  const scopes = ["other", "terminal", "message-input", "editable"] as const;
+
+  it.each(scopes)("switches tabs rather than workspaces or panes from %s", (focusScope) => {
+    const context = { ...platform, focusScope };
+    for (let index = 1; index <= 9; index++) {
+      expectShortcutResolution({
+        event: { key: String(index), code: `Digit${index}`, metaKey: true },
+        context,
+        action: "workspace.tab.navigate.index",
+        payload: { index },
+      });
+    }
+    for (const [code, delta] of [
+      ["ArrowLeft", -1],
+      ["ArrowRight", 1],
+    ] as const) {
+      expectShortcutResolution({
+        event: { key: code, code, metaKey: true, shiftKey: true },
+        context,
+        action: "workspace.tab.navigate.relative",
+        payload: { delta },
+      });
+    }
+  });
+
+  it.each(scopes)("routes session and pane commands from %s without shadowing", (focusScope) => {
+    const context = { ...platform, focusScope };
+    const commands = [
+      ["k", "KeyK", false, "command-center.toggle"],
+      ["j", "KeyJ", false, "command-center.toggle"],
+      ["l", "KeyL", false, "workspace.navigate.last"],
+      ["t", "KeyT", false, "workspace.tab.menu.open"],
+      ["n", "KeyN", false, "workspace.pane.split.right"],
+      ["N", "KeyN", true, "workspace.pane.split.down"],
+      [",", "Comma", false, "workspace.tab.rename.current"],
+      ["w", "KeyW", false, "workspace.tab.close.current"],
+      ["F", "KeyF", true, "terminal.find"],
+      ["p", "KeyP", false, "workspace.pr-cockpit.open"],
+      ["W", "KeyW", true, "command-center.toggle"],
+      ["P", "KeyP", true, "worktree.new"],
+      ["g", "KeyG", false, "workspace.lazygit.open"],
+    ] as const;
+    for (const [key, code, shiftKey, action] of commands) {
+      expectShortcutResolution({
+        event: { key, code, metaKey: true, shiftKey },
+        context,
+        action,
+      });
+    }
+  });
+
+  it.each(scopes)("keeps Alacritty Control+Shift tab navigation from %s", (focusScope) => {
+    for (const [key, delta] of [
+      ["h", -1],
+      ["l", 1],
+    ] as const) {
+      expectShortcutResolution({
+        event: { key, code: `Key${key.toUpperCase()}`, ctrlKey: true, shiftKey: true },
+        context: { ...platform, focusScope },
+        action: "workspace.tab.navigate.relative",
+        payload: { delta },
+      });
+    }
+  });
+
+  it("sends terminal save and alternate Enter only from terminal focus", () => {
+    const commands = [
+      [{ key: "s", code: "KeyS", metaKey: true }, "terminal.save"],
+      [{ key: "Enter", code: "Enter", shiftKey: true }, "terminal.alt-enter"],
+    ] as const;
+    for (const [event, action] of commands) {
+      expectShortcutResolution({ event, context: { ...platform, focusScope: "terminal" }, action });
+      for (const focusScope of ["other", "editable", "message-input"] as const) {
+        expectNoShortcutResolution({ event, context: { ...platform, focusScope } });
+      }
+    }
+  });
+
+  it("preserves the native paste and new-window accelerators", () => {
+    for (const event of [
+      { key: "v", code: "KeyV", metaKey: true },
+      { key: "N", code: "KeyN", metaKey: true, ctrlKey: true, shiftKey: true },
+    ]) {
+      expectNoShortcutResolution({ event, context: { ...platform, focusScope: "terminal" } });
+    }
+  });
+
+  it("keeps the displaced pin action on an unambiguous shortcut", () => {
+    expectShortcutResolution({
+      event: { key: "P", code: "KeyP", metaKey: true, altKey: true, shiftKey: true },
+      context: platform,
+      action: "workspace.pin",
+    });
+  });
+
+  it.each([
+    ["h", "left"],
+    ["j", "down"],
+    ["k", "up"],
+    ["l", "right"],
+  ] as const)(
+    "navigates panes with Ctrl+%s without stealing terminal/editor input",
+    (key, direction) => {
+      const event = { key, code: `Key${key.toUpperCase()}`, ctrlKey: true };
+      expectShortcutResolution({
+        event,
+        context: { ...platform, focusScope: "other" },
+        action: `workspace.pane.focus.${direction}`,
+      });
+      for (const focusScope of ["terminal", "message-input", "editable"] as const) {
+        expectNoShortcutResolution({ event, context: { ...platform, focusScope } });
+      }
+    },
+  );
+
+  it("leaves Cmd+Q to native desktop quit rather than closing a remote pane", () => {
+    expectNoShortcutResolution({
+      event: { key: "q", code: "KeyQ", metaKey: true },
+      context: { ...platform, focusScope: "terminal" },
+    });
+  });
+
+  it("has no shadowed default chords in any platform or focus context", () => {
+    const bindings = buildEffectiveBindings({});
+    const platforms = [
+      { isMac: true, isDesktop: true },
+      { isMac: true, isDesktop: false },
+      { isMac: false, isDesktop: true },
+      { isMac: false, isDesktop: false },
+    ];
+    const focusScopes = [...scopes, "browser", "command-center"] as const;
+    const contexts = [];
+    for (const { isMac, isDesktop } of platforms) {
+      for (const focusScope of focusScopes) {
+        contexts.push(
+          { isMac, isDesktop, focusScope, commandCenterOpen: true },
+          { isMac, isDesktop, focusScope, commandCenterOpen: false },
+        );
+      }
+    }
+    for (const context of contexts) {
+      const claims = new Map<string, string>();
+      for (const binding of bindings) {
+        const combo = binding.parsedChord[0];
+        if (!combo || binding.parsedChord.length !== 1) continue;
+        const event = {
+          key: combo.key ?? combo.code,
+          code: combo.code === "Digit" ? "Digit1" : combo.code,
+          metaKey: combo.meta === true || (context.isMac && combo.mod === true),
+          ctrlKey: combo.ctrl === true || (!context.isMac && combo.mod === true),
+          altKey: combo.alt === true,
+          shiftKey: combo.shift === true,
+        };
+        if (!resolveShortcut({ event, context, bindings: [binding] }).match) continue;
+        const chord = JSON.stringify([
+          event.code,
+          event.metaKey,
+          event.ctrlKey,
+          event.altKey,
+          event.shiftKey,
+        ]);
+        expect(claims.get(chord), `${binding.id} in ${JSON.stringify(context)}`).toBeUndefined();
+        claims.set(chord, binding.id);
+      }
+    }
+  });
+});
+
 describe("keyboard-shortcut help sections", () => {
   function findRow(sections: ReturnType<typeof buildKeyboardShortcutHelpSections>, id: string) {
     for (const section of sections) {
@@ -708,69 +870,6 @@ describe("keyboard-shortcut help sections", () => {
     }
     return null;
   }
-
-  const helpCases: HelpSectionCase[] = [
-    {
-      name: "uses web defaults for workspace and tab jump",
-      context: { isMac: true, isDesktop: false },
-      expectedKeys: {
-        "new-agent": ["mod", "O"],
-        "workspace-tab-new": ["mod", "T"],
-        "workspace-jump-index": ["alt", "1-9"],
-        "workspace-tab-jump-index": ["alt", "shift", "1-9"],
-        "workspace-tab-close-current": ["alt", "shift", "W"],
-        "workspace-pane-split-right": ["mod", "\\"],
-        "workspace-pane-close": ["mod", "shift", "W"],
-        "cycle-agent-mode": ["shift", "Tab"],
-      },
-    },
-    {
-      name: "uses desktop defaults for workspace and tab jump",
-      context: { isMac: true, isDesktop: true },
-      expectedKeys: {
-        "new-agent": ["mod", "O"],
-        "new-workspace": ["mod", "alt", "N"],
-        "workspace-tab-new": ["mod", "T"],
-        "workspace-jump-index": ["mod", "1-9"],
-        "workspace-tab-jump-index": ["mod", "alt", "1-9"],
-        // Derived from `combo: "Cmd+W"`, so the token is `mod` where the row
-        // used to be hand-authored as `meta`. This binding is mac-only and
-        // `formatShortcut` renders both as ⌘, so the badge is unchanged — see
-        // the render assertion below.
-        "workspace-tab-close-current": ["mod", "W"],
-        "workspace-pane-split-right": ["mod", "N"],
-        "workspace-pane-close": ["mod", "shift", "W"],
-      },
-    },
-    {
-      name: "uses non-mac desktop defaults for tab jump and close tab",
-      context: { isMac: false, isDesktop: true },
-      expectedKeys: {
-        "workspace-tab-jump-index": ["alt", "1-9"],
-        "workspace-tab-close-current": ["ctrl", "W"],
-      },
-    },
-    {
-      name: "uses ctrl+b for the left sidebar and ctrl+period for both sidebars on non-mac",
-      context: { isMac: false, isDesktop: false },
-      // Derived from `combo: "Ctrl+B"` / `"Ctrl+."`, so the token is `ctrl` where
-      // these rows used to be hand-authored as `mod`. Both bindings are non-mac
-      // only and `formatShortcut` labels either token "Ctrl" there, so the badge
-      // is unchanged — see the render assertion below.
-      expectedKeys: {
-        "toggle-left-sidebar": ["ctrl", "B"],
-        "toggle-both-sidebars": ["ctrl", "."],
-      },
-    },
-  ];
-
-  it.each(helpCases)("$name", ({ context, expectedKeys }) => {
-    const sections = buildKeyboardShortcutHelpSections(context);
-
-    for (const [id, keys] of Object.entries(expectedKeys)) {
-      expect(findRow(sections, id)?.chord).toEqual([keys]);
-    }
-  });
 
   describe("rows derive their keys from the binding that fires", () => {
     const macDesktop = { isMac: true, isDesktop: true };
@@ -828,7 +927,7 @@ describe("keyboard-shortcut help sections", () => {
     // `1-9` and `?` are display-only tokens no combo string can spell, so these
     // two rows opt out of default derivation via `help.defaultDisplayKeys`.
     it("keeps the wildcard token on the index-jump row", () => {
-      expect(rowChord({}, "workspace-jump-index")).toEqual([["mod", "1-9"]]);
+      expect(rowChord({}, "workspace-jump-index")).toEqual([["mod", "alt", "1-9"]]);
     });
 
     it("keeps the bare ? on the show-shortcuts row rather than deriving Shift+?", () => {
@@ -902,14 +1001,11 @@ describe("keyboard-shortcut help sections", () => {
     expect(unplaced).toEqual([]);
   });
 
-  it("leads the general section with the command center and file search", () => {
-    const sections = buildKeyboardShortcutHelpSections({ isMac: true, isDesktop: true });
-
-    expect(sections[0]?.id).toBe("general");
-    expect(sections[0]?.rows.slice(0, 2).map((row) => row.id)).toEqual([
-      "toggle-command-center",
-      "search-files",
-    ]);
+  it("advertises the tab-switch shortcut that wins on macOS", () => {
+    const platform = { isMac: true, isDesktop: true };
+    const sections = buildKeyboardShortcutHelpSections(platform);
+    expect(findRow(sections, "workspace-tab-prev")?.chord).toEqual([["mod", "shift", "Left"]]);
+    expect(findRow(sections, "workspace-tab-next")?.chord).toEqual([["mod", "shift", "Right"]]);
   });
 
   it("reuses the project-picker binding ids for rebindable file search", () => {
@@ -947,8 +1043,8 @@ describe("getWorkspaceIndexJumpModifierKey", () => {
     expect(getWorkspaceIndexJumpModifierKey({ isMac: false, isDesktop: false })).toBe("Alt");
   });
 
-  it("uses Cmd (Meta) on desktop Mac, not Control or Alt", () => {
-    expect(getWorkspaceIndexJumpModifierKey({ isMac: true, isDesktop: true })).toBe("Meta");
+  it("does not advertise workspace badges for the tab-jump modifier on Mac", () => {
+    expect(getWorkspaceIndexJumpModifierKey({ isMac: true, isDesktop: true })).toBeNull();
   });
 
   it("uses Ctrl on desktop non-Mac, not Meta or Alt", () => {

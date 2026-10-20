@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Matched macOS workspace, tab, split, terminal, and tool shortcuts to the Alacritty/tmux setup, including ⌘K for workspace search and ⌘⇧←/→ for tab navigation.
+- Added compact links at each pane's top right for PR Cockpit URLs found in terminal output and loaded agent history. Clicking a link or pressing ⌘P opens the installed PR Cockpit app.
+
 ## 0.11.0-beta.5 - 2026-10-06
 
 ### Added

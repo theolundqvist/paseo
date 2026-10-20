@@ -106,6 +106,7 @@ import { recordRenderProfileReasons } from "@/utils/render-profiler";
 import { useRetainedPanelActive } from "@/components/retained-panel";
 import { useStreamHistoryWindow } from "./use-stream-history-window";
 import { PluginTimelineItemView, useInstalledTimelineTransform } from "@/plugins/timeline";
+import { TimelineCockpitLinks } from "@/components/pr-cockpit/timeline-links";
 
 function renderLiveAuxiliaryNode(input: {
   pendingPermissions: ReactNode;
@@ -1108,6 +1109,7 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
       >
         <ToolCallSheetProvider>
           <AssistantSelectionCopySurface style={stylesheet.container}>
+            <TimelineCockpitLinks key={`${resolvedServerId}:${agentId}`} items={findItems} />
             <MessageOuterSpacingProvider disableOuterSpacing>
               {streamRenderStrategy.render({
                 agentId,

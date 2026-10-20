@@ -95,7 +95,7 @@ function buildApplicationMenuTemplate(
       submenu: [
         {
           label: "New Window",
-          accelerator: "CmdOrCtrl+Shift+Alt+N",
+          accelerator: isMac ? "Command+Control+Shift+N" : "Ctrl+Shift+Alt+N",
           click: () => {
             options.onNewWindow();
           },

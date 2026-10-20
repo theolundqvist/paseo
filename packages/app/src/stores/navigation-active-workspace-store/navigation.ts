@@ -43,6 +43,10 @@ export interface NavigateToLastWorkspaceDeps extends NavigateToWorkspaceDeps {
   getLastWorkspaceSelection: () => ActiveWorkspaceSelection | null;
 }
 
+export interface NavigateToPreviousWorkspaceDeps extends NavigateToWorkspaceDeps {
+  getPreviousWorkspaceSelection: () => ActiveWorkspaceSelection | null;
+}
+
 function getParamValue(value: string | string[] | undefined): string {
   if (typeof value === "string") {
     return value.trim();
@@ -129,6 +133,15 @@ export function navigateToWorkspace(
 
 export function navigateToLastWorkspace(deps: NavigateToLastWorkspaceDeps): boolean {
   const selection = deps.getLastWorkspaceSelection();
+  if (!selection) {
+    return false;
+  }
+  navigateToWorkspace(selection, deps);
+  return true;
+}
+
+export function navigateToPreviousWorkspace(deps: NavigateToPreviousWorkspaceDeps): boolean {
+  const selection = deps.getPreviousWorkspaceSelection();
   if (!selection) {
     return false;
   }

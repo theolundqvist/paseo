@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
-import type { ActiveWorkspaceSelection } from "@/stores/last-workspace-selection";
+import {
+  createLastWorkspaceSelectionStore,
+  type ActiveWorkspaceSelection,
+} from "@/stores/last-workspace-selection";
 import type { WorkspaceTabTarget } from "@/workspace-tabs/model";
 import { parseHostWorkspaceRouteFromPathname } from "@/utils/host-routes";
 import {
   navigateToLastWorkspace,
+  navigateToPreviousWorkspace,
   navigateToWorkspace,
   parseActiveWorkspaceSelection,
   type NavigateToLastWorkspaceDeps,
@@ -60,6 +64,35 @@ function createLastSelectionDeps(
 }
 
 describe("workspace navigation", () => {
+  it("switches back and forth between the last two distinct workspaces", () => {
+    const store = createLastWorkspaceSelectionStore({
+      read: async () => null,
+      write: async () => {},
+      clear: async () => {},
+    });
+    const { deps, navigations } = createFakeDeps({
+      rememberLastWorkspace: store.remember,
+    });
+    const previousDeps = {
+      ...deps,
+      getPreviousWorkspaceSelection: store.getPreviousSelection,
+    };
+    expect(navigateToPreviousWorkspace(previousDeps)).toBe(false);
+    navigateToWorkspace({ serverId: "server-1", workspaceId: "workspace-a" }, deps);
+    expect(navigateToPreviousWorkspace(previousDeps)).toBe(false);
+    navigateToWorkspace({ serverId: "server-2", workspaceId: "workspace-b" }, deps);
+    // Route observers and tab changes can remember the same workspace again.
+    store.remember({ serverId: "server-2", workspaceId: "workspace-b" });
+    expect(navigateToPreviousWorkspace(previousDeps)).toBe(true);
+    expect(navigateToPreviousWorkspace(previousDeps)).toBe(true);
+    expect(navigations).toEqual([
+      "/h/server-1/workspace/workspace-a",
+      "/h/server-2/workspace/workspace-b",
+      "/h/server-1/workspace/workspace-a",
+      "/h/server-2/workspace/workspace-b",
+    ]);
+  });
+
   it("reports when no last workspace is known", () => {
     const { deps } = createLastSelectionDeps(null);
 

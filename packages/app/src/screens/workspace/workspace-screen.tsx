@@ -2387,9 +2387,10 @@ function WorkspaceScreenContent({
     [openWorkspaceDraftTab],
   );
 
-  const handleCreateTerminal = useStableEvent((input?: { paneId?: string }) => {
+  const handleCreateTerminal = useStableEvent((input?: { paneId?: string; command?: string }) => {
     createTerminal({
       destination: input?.paneId ? { kind: "open", paneId: input.paneId } : { kind: "open" },
+      command: input?.command,
     });
   });
 
@@ -3129,6 +3130,9 @@ function WorkspaceScreenContent({
         case "workspace.terminal.new":
           handleCreateTerminal();
           return true;
+        case "workspace.lazygit.open":
+          handleCreateTerminal({ paneId: focusedPaneTabState.pane?.id, command: "lazygit" });
+          return true;
         case "workspace.browser.new":
           handleCreateBrowserTab();
           return true;
@@ -3355,6 +3359,7 @@ function WorkspaceScreenContent({
       "workspace.tab.navigate-index",
       "workspace.tab.navigate-relative",
       "workspace.terminal.new",
+      "workspace.lazygit.open",
       "workspace.browser.new",
       "workspace.tab.menu.open",
     ] as const,

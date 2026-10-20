@@ -2,7 +2,15 @@ import { TerminalFind, type TerminalPaneFindHandle } from "@/terminal/find";
 import type { TerminalFindResult } from "@/terminal/runtime/terminal-emulator-runtime";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useRetainedPanelActive } from "@/components/retained-panel";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import * as Clipboard from "expo-clipboard";
 import {
   Pressable,
@@ -25,6 +33,7 @@ import { useHostRuntimeClient, useHostRuntimeIsConnected } from "@/runtime/host-
 import { useKeyboardShiftStyle } from "@/keyboard/shift";
 import { useAppActivelyVisible } from "@/hooks/use-app-visible";
 import { useStableEvent } from "@/hooks/use-stable-event";
+import { useKeyboardActionHandler } from "@/hooks/use-keyboard-action-handler";
 import {
   hasPendingTerminalModifiers,
   resolvePendingModifierDataInput,
@@ -87,6 +96,8 @@ import {
   type OpenFileDisposition,
   type WorkspaceFileOpenRequest,
 } from "@/workspace/file-open";
+import { createTerminalCockpitLinks } from "@/components/pr-cockpit/links";
+import { PaneCockpitLinks } from "@/components/pr-cockpit/pane-links";
 
 interface TerminalPaneProps {
   serverId: string;
@@ -234,6 +245,7 @@ export function TerminalPane({
   onOpenWorkspaceFile,
 }: TerminalPaneProps) {
   const { t } = useTranslation();
+  const keyboardHandlerId = useId();
   const retainedPanelActive = useRetainedPanelActive();
   const isAppActivelyVisible = useAppActivelyVisible();
   const { theme } = useUnistyles();
@@ -312,6 +324,15 @@ export function TerminalPane({
   const lastAutoFocusKeyRef = useRef<string | null>(null);
   const paneFocusResizeClaimRef = useRef(EMPTY_FOCUS_CLAIM_STATE);
   const initialSnapshot = workspaceTerminalSession.snapshots.get({ terminalId });
+  const cockpitLinkSource = useMemo(
+    () => createTerminalCockpitLinks(workspaceTerminalSession.snapshots.get({ terminalId })),
+    [workspaceTerminalSession, terminalId],
+  );
+  const cockpitLinks = useSyncExternalStore(
+    cockpitLinkSource.subscribe,
+    cockpitLinkSource.getSnapshot,
+    cockpitLinkSource.getSnapshot,
+  );
 
   useEffect(() => {
     terminalIdRef.current = terminalId;
@@ -488,7 +509,10 @@ export function TerminalPane({
 
   const handleStreamExit = useStableEvent((exitedTerminalId: string) => {
     workspaceTerminalSession.snapshots.clear({ terminalId: exitedTerminalId });
-    if (terminalIdRef.current === exitedTerminalId) emulatorRef.current?.clear();
+    if (terminalIdRef.current === exitedTerminalId) {
+      emulatorRef.current?.clear();
+      cockpitLinkSource.clear();
+    }
     setModifiers({ ...EMPTY_MODIFIERS });
   });
 
@@ -523,6 +547,7 @@ export function TerminalPane({
       if (terminalIdRef.current !== outputTerminalId) {
         return;
       }
+      cockpitLinkSource.write(data);
       emulatorRef.current?.writeOutput(data);
     },
   );
@@ -533,6 +558,7 @@ export function TerminalPane({
       if (terminalIdRef.current !== restoreTerminalId) {
         return;
       }
+      cockpitLinkSource.restore(data);
       emulatorRef.current?.restoreOutput(data);
     },
   );
@@ -543,6 +569,7 @@ export function TerminalPane({
       if (terminalIdRef.current !== snapshotTerminalId) {
         return;
       }
+      cockpitLinkSource.snapshot(state);
       emulatorRef.current?.renderSnapshot(state);
     },
   );
@@ -798,6 +825,18 @@ export function TerminalPane({
       enqueuePendingTerminalInput,
     ],
   );
+
+  useKeyboardActionHandler({
+    handlerId: `terminal-input:${keyboardHandlerId}`,
+    actions: ["terminal.input.send"],
+    enabled: isTerminalPresented && isPaneFocused && rendererReadyStreamKey === terminalStreamKey,
+    priority: 100,
+    handle: (action) => {
+      if (action.id !== "terminal.input.send") return false;
+      void handleTerminalData(action.data);
+      return true;
+    },
+  });
 
   const sendTerminalResize = useStableEvent((input: TerminalResizeRequest) => {
     const nextSize = { rows: input.rows, cols: input.cols };
@@ -1065,6 +1104,7 @@ export function TerminalPane({
 
   return (
     <Animated.View style={containerStyle}>
+      <PaneCockpitLinks key={terminalStreamKey} links={cockpitLinks} />
       <View style={styles.outputContainer}>
         <View style={styles.terminalGestureContainer}>
           <TerminalEmulator

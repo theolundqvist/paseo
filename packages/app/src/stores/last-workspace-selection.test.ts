@@ -50,6 +50,7 @@ describe("last workspace selection", () => {
       workspaceId: "workspace-saved",
     });
     expect(store.isHydrated()).toBe(true);
+    expect(store.getPreviousSelection()).toBeNull();
   });
 
   it("keeps a newer workspace selection when storage hydration finishes late", async () => {
@@ -69,5 +70,22 @@ describe("last workspace selection", () => {
       serverId: "server-new",
       workspaceId: "workspace-new",
     });
+    expect(store.getPreviousSelection()).toBeNull();
+  });
+
+  it("retains the previous distinct workspace without changing the startup selection", () => {
+    const storage = new DelayedWorkspaceSelectionStorage();
+    const store = createLastWorkspaceSelectionStore(storage);
+    const first = { serverId: "server-1", workspaceId: "workspace-a" };
+    const second = { serverId: "server-2", workspaceId: "workspace-a" };
+    store.remember(first);
+    expect(store.getPreviousSelection()).toBeNull();
+    store.remember(second);
+    store.remember({ ...second });
+    expect(store.getPreviousSelection()).toEqual(first);
+    expect(store.getSelection()).toEqual(second);
+    expect(storage.getSavedSelection()).toEqual(second);
+    store.remember(first);
+    expect(store.getPreviousSelection()).toEqual(second);
   });
 });
