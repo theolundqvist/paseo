@@ -2,6 +2,7 @@ import {
   forwardRef,
   useCallback,
   useEffect,
+  useId,
   useImperativeHandle,
   useRef,
   useState,
@@ -16,6 +17,7 @@ import { hasActiveWebOverlay } from "@/lib/overlay-root";
 import { isImeComposingKeyboardEvent } from "@/utils/keyboard-ime";
 import type { TerminalEmulatorHandle } from "@/components/terminal-emulator-contract";
 import type { TerminalFindResult } from "../runtime/terminal-emulator-runtime";
+import { useKeyboardActionHandler } from "@/hooks/use-keyboard-action-handler";
 
 export interface TerminalPaneFindHandle {
   open(): void;
@@ -32,6 +34,7 @@ export const TerminalFind = forwardRef<
   }
 >(function TerminalFind({ terminal, active, focusTerminal }, ref) {
   const { t } = useTranslation();
+  const handlerId = useId();
   const widget = useRef<PaneFindHandle>(null);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -47,6 +50,17 @@ export const TerminalFind = forwardRef<
     setOpen(true);
     widget.current?.focus();
   }, [active, open, query, terminal]);
+  useKeyboardActionHandler({
+    handlerId: `terminal-find:${handlerId}`,
+    actions: ["terminal.find"],
+    enabled: active,
+    priority: 100,
+    handle: () => {
+      if (!terminal.current?.find) return false;
+      show();
+      return true;
+    },
+  });
   useImperativeHandle(
     ref,
     () => ({

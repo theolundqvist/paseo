@@ -201,9 +201,11 @@ The desktop does not manage agent skills. It retains one compatibility reader fo
 `skill-selection.json`, imports that preference into its managed local daemon, then deletes the old
 file after the daemon confirms persistence.
 
-**Multi-window (hybrid land-on model).** `createWindow()` in `main.ts` is reusable: `⌘⇧⌥N`/File→New Window (`⌘⇧N` splits a pane), relaunching the app (`second-instance`), and the sidebar "Open in new window" action each open a fresh `BrowserWindow`. Every window shows the full sidebar — there is no per-window project ownership or filtering. "Land on a project" is delivered by a per-`webContents` `PendingOpenProjectStore`: each window pulls its own pending project path on mount (`paseo:get-pending-open-project`) and runs the normal open-project flow, identical to a CLI `paseo <path>` launch.
+Mac shortcuts follow the terminal setup: ⌘K/⌘J choose a workspace, ⌘L returns to the previous workspace (browser panes retain address-bar focus), and ⌘1–9 or ⌘⇧←/→ select tabs. ⌘N/⌘⇧N split right/down; ⌘P opens a detected pane PR in PR Cockpit, ⌘G opens lazygit, and ⌘⇧F searches the focused terminal. Git tools use the focused agent's cwd or terminal's launch cwd, not a synthetic grouping directory; a shell's later `cd` is not tracked. Worktree creation retains that checkout or subdirectory through project selection. Terminal ⌘S sends Escape, `:w`, Enter; Shift+Enter sends Escape, Enter. Control+h/j/k/l remain available to terminal/editor applications. Clipboard paste stays native; no tmux image bridge is added.
 
-> **Window-state v1 limitation:** only the _first_ window of a session restores and persists saved geometry (size/position/maximized). Windows opened via ⌘⇧⌥N / second-instance / "Open in new window" open at the default size, OS-cascaded, and do not persist — this avoids every window stacking on the same restored bounds and fighting over the single window-state store. Lifting this needs per-window state keys.
+**Multi-window (hybrid land-on model).** `createWindow()` in `main.ts` is reusable: `⌘⌃⇧N`/File→New Window (`⌘⇧N` splits a pane), relaunching the app (`second-instance`), and the sidebar "Open in new window" action each open a fresh `BrowserWindow`. Every window shows the full sidebar — there is no per-window project ownership or filtering. "Land on a project" is delivered by a per-`webContents` `PendingOpenProjectStore`: each window pulls its own pending project path on mount (`paseo:get-pending-open-project`) and runs the normal open-project flow, identical to a CLI `paseo <path>` launch.
+
+> **Window-state v1 limitation:** only the _first_ window of a session restores and persists saved geometry (size/position/maximized). Windows opened via ⌘⌃⇧N / second-instance / "Open in new window" open at the default size, OS-cascaded, and do not persist — this avoids every window stacking on the same restored bounds and fighting over the single window-state store. Lifting this needs per-window state keys.
 >
 > **In-app browser profile.** Every browser guest uses one stable persistent Electron session, so cookies, authentication, cache, and site storage are shared across tabs, workspaces, and desktop windows and survive tab or app closure. Browser identity is independent of that storage partition: after every `did-attach`, the renderer explicitly registers its browser id, workspace id, and current guest `WebContents` id, and main accepts the registration only when that guest belongs to the calling renderer and the shared profile. Registration is intentionally repeated because reparenting a retained `<webview>` can replace its guest without replacing the DOM element. Settings > General > Clear browser data is the sole profile-deletion path; it clears the shared session and reloads live guests without deleting saved tabs or URLs.
 >
@@ -296,6 +298,8 @@ searches that workspace and returns relative entries. Clients may prepend their 
 recent-project list for bare queries, but must not parse filesystem query syntax or re-filter a
 correlated daemon response. The legacy `directories` response field remains a projection of the
 typed `entries` list.
+
+Workspace-scoped terminal lists and subscription snapshots enumerate workspace-owned terminals across launch directories, not by the workspace's grouping path. Membership events invalidate in-flight enumeration before publication so clients do not prune panes from a known-stale snapshot. Unscoped directory subscriptions retain their existing directory filtering.
 
 **Binary frames (terminal stream protocol):**
 

@@ -46,6 +46,9 @@ const MAX_TERMINAL_STREAM_SLOTS = 256;
 interface TerminalDirectorySubscription {
   cwd: string;
   workspaceId: string | undefined;
+  // Owned terminal ids from the last snapshot, by launch cwd. Removal events
+  // list only the survivors in a cwd bucket, so ownership alone cannot match them.
+  terminalIdsByCwd: ReadonlyMap<string, readonly string[]>;
   owner: OwnedSubscription;
   refresh: Promise<void> | null;
   pending: boolean;
@@ -187,17 +190,22 @@ export class TerminalSessionController {
     const subscriptions = [...this.subscribedDirectories.values()].filter(
       (subscription) => !source || subscription.owner.source === source,
     );
-    if (subscriptions.length === 0) return false;
+    if (
+      subscriptions.some(
+        (subscription) =>
+          subscription.workspaceId !== undefined && subscription.workspaceId === input.workspaceId,
+      )
+    ) {
+      return true;
+    }
+    const cwdSubscriptions = subscriptions.filter(
+      (subscription) => subscription.workspaceId === undefined,
+    );
+    if (cwdSubscriptions.length === 0) return false;
     const workspaceRoots = await this.listTerminalWorkspaceRoots();
-    return subscriptions.some((subscription) => {
-      if (
-        subscription.workspaceId !== undefined &&
-        subscription.workspaceId !== input.workspaceId
-      ) {
-        return false;
-      }
-      return this.terminalBelongsToRoot(subscription.cwd, input.cwd, workspaceRoots);
-    });
+    return cwdSubscriptions.some((subscription) =>
+      this.terminalBelongsToRoot(subscription.cwd, input.cwd, workspaceRoots),
+    );
   }
 
   dispatch(msg: SessionInboundMessage, ownership: SessionDelivery): Promise<void> | undefined {
@@ -328,13 +336,24 @@ export class TerminalSessionController {
   }
 
   private async handleTerminalsChanged(event: TerminalsChangedEvent): Promise<void> {
-    // A terminal can live in a subdirectory of a subscribed workspace root (an
-    // agent can open one there). Deliver the change to every subscribed root at
-    // or above the terminal's cwd, keyed by that root, carrying the full
-    // aggregated list — so the client's cache replacement doesn't drop the
-    // terminals that live directly at the root.
+    // Unscoped roots also receive subdirectory changes, carrying the full
+    // aggregate so the client's cache replacement keeps root terminals.
+    let listedIds: ReadonlySet<string> | null = null;
     const matchingSubscriptions = Array.from(this.subscribedDirectories.values()).filter(
-      (subscription) => this.isPathWithinRoot(subscription.cwd, event.cwd),
+      (subscription) => {
+        const { workspaceId } = subscription;
+        if (workspaceId === undefined) {
+          return this.isPathWithinRoot(subscription.cwd, event.cwd);
+        }
+        // An in-flight enumeration may predate this change, so coalesce it.
+        if (subscription.refresh) return true;
+        if (event.terminals.some((terminal) => terminal.workspaceId === workspaceId)) return true;
+        const knownIds = subscription.terminalIdsByCwd.get(event.cwd);
+        if (!knownIds) return false;
+        listedIds ??= new Set(event.terminals.map((terminal) => terminal.id));
+        const listed = listedIds;
+        return knownIds.some((terminalId) => !listed.has(terminalId));
+      },
     );
     for (const subscription of matchingSubscriptions) {
       await this.emitTerminalsSnapshotForSubscription(subscription);
@@ -363,6 +382,7 @@ export class TerminalSessionController {
     subscription = {
       cwd: msg.cwd,
       workspaceId: msg.workspaceId,
+      terminalIdsByCwd: new Map(),
       owner,
       refresh: null,
       pending: false,
@@ -386,30 +406,35 @@ export class TerminalSessionController {
       return subscription.refresh;
     }
     const refresh = (async () => {
-      do {
-        subscription.pending = false;
-        const terminals = await this.getTerminalsForWorkspaceRoot(
-          subscription.cwd,
-          subscription.workspaceId,
-        );
-        if (subscription.owner.signal.aborted) return;
-        subscription.owner.emit({
-          type: "terminals_changed",
-          payload: {
-            cwd: subscription.cwd,
-            workspaceId: subscription.workspaceId,
-            terminals: terminals.map((terminal) => this.toTerminalInfo(terminal)),
-            ...(requestId ? { requestId } : {}),
-          },
-        });
-        requestId = undefined;
-      } while (subscription.pending);
+      try {
+        do {
+          subscription.pending = false;
+          const terminals =
+            subscription.workspaceId === undefined
+              ? await this.getTerminalsForWorkspaceRoot(subscription.cwd)
+              : await this.getWorkspaceTerminals(subscription.workspaceId);
+          if (subscription.owner.signal.aborted) return;
+          if (subscription.workspaceId !== undefined) {
+            // Invalidated membership must not reach the client's pane-pruning pass.
+            if (subscription.pending) continue;
+            subscription.terminalIdsByCwd = groupTerminalIdsByCwd(terminals);
+          }
+          subscription.owner.emit({
+            type: "terminals_changed",
+            payload: {
+              cwd: subscription.cwd,
+              workspaceId: subscription.workspaceId,
+              terminals: terminals.map((terminal) => this.toTerminalInfo(terminal)),
+              ...(requestId ? { requestId } : {}),
+            },
+          });
+          requestId = undefined;
+        } while (subscription.pending);
+      } finally {
+        subscription.refresh = null;
+      }
     })();
     subscription.refresh = refresh;
-    const settled = () => {
-      subscription.refresh = null;
-    };
-    void refresh.then(settled, settled);
     return refresh;
   }
 
@@ -429,9 +454,7 @@ export class TerminalSessionController {
     try {
       let terminals: TerminalSession[];
       if (msg.workspaceId !== undefined) {
-        terminals = (await this.getAllTerminalSessions()).filter(
-          (terminal) => terminal.workspaceId === msg.workspaceId,
-        );
+        terminals = await this.getWorkspaceTerminals(msg.workspaceId);
       } else if (typeof msg.cwd === "string") {
         terminals = await this.getTerminalsForWorkspaceRoot(msg.cwd);
       } else {
@@ -474,15 +497,18 @@ export class TerminalSessionController {
     ];
   }
 
-  private async getTerminalsForWorkspaceRoot(
-    cwd: string,
-    workspaceId?: string,
-  ): Promise<TerminalSession[]> {
+  private async getWorkspaceTerminals(workspaceId: string): Promise<TerminalSession[]> {
+    return (await this.getAllTerminalSessions()).filter(
+      (terminal) => terminal.workspaceId === workspaceId,
+    );
+  }
+
+  private async getTerminalsForWorkspaceRoot(cwd: string): Promise<TerminalSession[]> {
     if (!this.terminalManager) {
       return [];
     }
 
-    const terminals = await this.terminalManager.getTerminals(cwd, { workspaceId });
+    const terminals = await this.terminalManager.getTerminals(cwd);
     const workspaceRoots = await this.listTerminalWorkspaceRoots();
     if (workspaceRoots.length === 0) {
       return terminals;
@@ -1185,4 +1211,16 @@ export class TerminalSessionController {
 
 function isTerminalMessage(msg: SessionInboundMessage): msg is TerminalDispatchableMessage {
   return TERMINAL_MESSAGE_TYPES.has(msg.type as TerminalDispatchableMessage["type"]);
+}
+
+function groupTerminalIdsByCwd(
+  terminals: readonly TerminalSession[],
+): ReadonlyMap<string, readonly string[]> {
+  const terminalIdsByCwd = new Map<string, string[]>();
+  for (const terminal of terminals) {
+    const terminalIds = terminalIdsByCwd.get(terminal.cwd) ?? [];
+    terminalIds.push(terminal.id);
+    terminalIdsByCwd.set(terminal.cwd, terminalIds);
+  }
+  return terminalIdsByCwd;
 }

@@ -44,7 +44,7 @@ export interface KeyboardShortcutMatch {
 export interface KeyboardShortcutHelpRow {
   id: string;
   label: string;
-  /** Absent for plugin rows, whose label is the plugin's own title. */
+  /** Absent when a binding supplies its own literal label. */
   labelKey?: string;
   /** The keys that actually fire this action, or `null` when it has none. */
   chord: ShortcutKey[][] | null;
@@ -168,6 +168,9 @@ const SHORTCUT_HELP_SECTION_LABEL_KEYS: Record<ShortcutSectionId, string> = {
 export const SHORTCUT_HELP_ROW_ORDER: Record<ShortcutSectionId, readonly string[]> = {
   general: [
     "toggle-command-center",
+    "search-workspaces",
+    "open-pr-cockpit",
+    "open-lazygit",
     "search-files",
     "show-shortcuts",
     "toggle-settings",
@@ -176,9 +179,12 @@ export const SHORTCUT_HELP_ROW_ORDER: Record<ShortcutSectionId, readonly string[
   workspaces: [
     "new-agent",
     "new-workspace",
+    "new-worktree",
+    "list-workspaces",
     "workspace-jump-index",
     "workspace-prev",
     "workspace-next",
+    "workspace-last",
     "pin-workspace",
     "archive-workspace",
   ],
@@ -190,6 +196,10 @@ export const SHORTCUT_HELP_ROW_ORDER: Record<ShortcutSectionId, readonly string[
     "workspace-tab-target-changes",
     "workspace-tab-target-files",
     "workspace-tab-close-current",
+    "workspace-tab-rename",
+    "terminal-find",
+    "terminal-save",
+    "terminal-alt-enter",
     "workspace-tab-jump-index",
     "workspace-tab-prev",
     "workspace-tab-next",
@@ -276,6 +286,9 @@ const SHORTCUT_HELP_NOTE_KEYS: Record<string, string> = {
 };
 
 // --- Binding definitions ---
+// macOS follows the Alacritty/tmux layout: workspaces are sessions, tabs are
+// windows, and panes are splits. Control navigation stays with terminal/editor
+// applications; only the explicitly requested tab arrows override selection.
 
 const SHORTCUT_BINDINGS: readonly ShortcutBinding[] = [
   // --- Open project ---
@@ -336,7 +349,7 @@ const SHORTCUT_BINDINGS: readonly ShortcutBinding[] = [
   {
     id: "workspace-project-pick-cmd-p-mac",
     action: "command-center.files",
-    combo: "Cmd+P",
+    combo: "Cmd+Alt+P",
     when: { mac: true, commandCenter: false },
     help: {
       id: "search-files",
@@ -388,7 +401,7 @@ const SHORTCUT_BINDINGS: readonly ShortcutBinding[] = [
   {
     id: "workspace-pin-cmd-shift-p-mac",
     action: "workspace.pin",
-    combo: "Cmd+Shift+P",
+    combo: "Cmd+Alt+Shift+P",
     when: { mac: true, commandCenter: false },
     help: {
       id: "pin-workspace",
@@ -559,14 +572,14 @@ const SHORTCUT_BINDINGS: readonly ShortcutBinding[] = [
   {
     id: "workspace-navigate-index-cmd-digit-mac",
     action: "workspace.navigate.index",
-    combo: "Cmd+Digit",
+    combo: "Cmd+Alt+Digit",
     when: { mac: true, desktop: true, commandCenter: false },
     payload: { type: "index" },
     help: {
       id: "workspace-jump-index",
       section: "workspaces",
       label: "Jump to workspace",
-      defaultDisplayKeys: ["mod", "1-9"],
+      defaultDisplayKeys: ["mod", "alt", "1-9"],
     },
   },
   {
@@ -600,14 +613,14 @@ const SHORTCUT_BINDINGS: readonly ShortcutBinding[] = [
   {
     id: "workspace-tab-navigate-index-cmd-alt-digit-mac-desktop",
     action: "workspace.tab.navigate.index",
-    combo: "Cmd+Alt+Digit",
+    combo: "Cmd+Digit",
     when: { mac: true, desktop: true, commandCenter: false },
     payload: { type: "index" },
     help: {
       id: "workspace-tab-jump-index",
       section: "tabs-panes",
       label: "Jump to tab",
-      defaultDisplayKeys: ["mod", "alt", "1-9"],
+      defaultDisplayKeys: ["mod", "1-9"],
     },
   },
   {
@@ -713,6 +726,44 @@ const SHORTCUT_BINDINGS: readonly ShortcutBinding[] = [
 
   // --- Tab relative navigation ---
   {
+    id: "workspace-tab-prev-cmd-shift-left",
+    action: "workspace.tab.navigate.relative",
+    combo: "Cmd+Shift+ArrowLeft",
+    when: { mac: true, commandCenter: false },
+    payload: { type: "delta", delta: -1 },
+    help: {
+      id: "workspace-tab-prev",
+      section: "tabs-panes",
+      label: "Previous tab",
+    },
+  },
+  {
+    id: "workspace-tab-next-cmd-shift-right",
+    action: "workspace.tab.navigate.relative",
+    combo: "Cmd+Shift+ArrowRight",
+    when: { mac: true, commandCenter: false },
+    payload: { type: "delta", delta: 1 },
+    help: {
+      id: "workspace-tab-next",
+      section: "tabs-panes",
+      label: "Next tab",
+    },
+  },
+  {
+    id: "workspace-tab-prev-ctrl-shift-h-mac",
+    action: "workspace.tab.navigate.relative",
+    combo: "Ctrl+Shift+H",
+    when: { mac: true, commandCenter: false },
+    payload: { type: "delta", delta: -1 },
+  },
+  {
+    id: "workspace-tab-next-ctrl-shift-l-mac",
+    action: "workspace.tab.navigate.relative",
+    combo: "Ctrl+Shift+L",
+    when: { mac: true, commandCenter: false },
+    payload: { type: "delta", delta: 1 },
+  },
+  {
     id: "workspace-tab-navigate-relative-alt-shift-left",
     action: "workspace.tab.navigate.relative",
     combo: "Alt+Shift+[",
@@ -807,8 +858,8 @@ const SHORTCUT_BINDINGS: readonly ShortcutBinding[] = [
   {
     id: "workspace-pane-focus-left-cmd-h",
     action: "workspace.pane.focus.left",
-    combo: "Cmd+H",
-    when: { mac: true, commandCenter: false },
+    combo: "Ctrl+H",
+    when: { mac: true, commandCenter: false, editable: false, terminal: false },
     help: {
       id: "workspace-pane-focus-left",
       section: "tabs-panes",
@@ -818,8 +869,8 @@ const SHORTCUT_BINDINGS: readonly ShortcutBinding[] = [
   {
     id: "workspace-pane-focus-down-cmd-j",
     action: "workspace.pane.focus.down",
-    combo: "Cmd+J",
-    when: { mac: true, commandCenter: false },
+    combo: "Ctrl+J",
+    when: { mac: true, commandCenter: false, editable: false, terminal: false },
     help: {
       id: "workspace-pane-focus-down",
       section: "tabs-panes",
@@ -829,8 +880,8 @@ const SHORTCUT_BINDINGS: readonly ShortcutBinding[] = [
   {
     id: "workspace-pane-focus-up-cmd-k",
     action: "workspace.pane.focus.up",
-    combo: "Cmd+K",
-    when: { mac: true, commandCenter: false },
+    combo: "Ctrl+K",
+    when: { mac: true, commandCenter: false, editable: false, terminal: false },
     help: {
       id: "workspace-pane-focus-up",
       section: "tabs-panes",
@@ -840,30 +891,8 @@ const SHORTCUT_BINDINGS: readonly ShortcutBinding[] = [
   {
     id: "workspace-pane-focus-right-cmd-l",
     action: "workspace.pane.focus.right",
-    combo: "Cmd+L",
-    when: { mac: true, commandCenter: false },
-    help: {
-      id: "workspace-pane-focus-right",
-      section: "tabs-panes",
-      label: "Focus pane right",
-    },
-  },
-  {
-    id: "workspace-pane-focus-left-cmd-shift-left",
-    action: "workspace.pane.focus.left",
-    combo: "Cmd+Shift+ArrowLeft",
-    when: { mac: true, commandCenter: false, editable: false },
-    help: {
-      id: "workspace-pane-focus-left",
-      section: "tabs-panes",
-      label: "Focus pane left",
-    },
-  },
-  {
-    id: "workspace-pane-focus-right-cmd-shift-right",
-    action: "workspace.pane.focus.right",
-    combo: "Cmd+Shift+ArrowRight",
-    when: { mac: true, commandCenter: false, editable: false },
+    combo: "Ctrl+L",
+    when: { mac: true, commandCenter: false, editable: false, terminal: false },
     help: {
       id: "workspace-pane-focus-right",
       section: "tabs-panes",
@@ -983,7 +1012,7 @@ const SHORTCUT_BINDINGS: readonly ShortcutBinding[] = [
   {
     id: "workspace-pane-close-cmd-shift-w",
     action: "workspace.pane.close",
-    combo: "Cmd+Shift+W",
+    combo: "Cmd+Alt+Shift+W",
     when: { mac: true, commandCenter: false },
     help: {
       id: "workspace-pane-close",
@@ -1019,7 +1048,7 @@ const SHORTCUT_BINDINGS: readonly ShortcutBinding[] = [
   {
     id: "command-center-toggle-cmd-semicolon-mac",
     action: "command-center.toggle",
-    combo: "Cmd+;",
+    combo: "Cmd+K",
     when: { mac: true },
     help: {
       id: "toggle-command-center",
@@ -1036,6 +1065,122 @@ const SHORTCUT_BINDINGS: readonly ShortcutBinding[] = [
       id: "toggle-command-center",
       section: "general",
       label: "Toggle command center",
+    },
+  },
+  {
+    id: "command-center-search-cmd-j-mac",
+    action: "command-center.toggle",
+    combo: "Cmd+J",
+    when: { mac: true },
+    help: {
+      id: "search-workspaces",
+      section: "general",
+      label: "Search workspaces",
+    },
+  },
+  {
+    id: "workspace-last-cmd-l-mac",
+    action: "workspace.navigate.last",
+    combo: "Cmd+L",
+    when: {
+      mac: true,
+      commandCenter: false,
+    },
+    help: {
+      id: "workspace-last",
+      section: "workspaces",
+      label: "Last workspace",
+      note: "Browser panes keep Cmd+L for the address bar.",
+    },
+  },
+  {
+    id: "workspace-pr-cockpit-open-cmd-p-mac",
+    action: "workspace.pr-cockpit.open",
+    combo: "Cmd+P",
+    when: { mac: true, commandCenter: false },
+    help: {
+      id: "open-pr-cockpit",
+      section: "general",
+      label: "Open PR Cockpit",
+    },
+  },
+  {
+    id: "workspace-tab-rename-cmd-comma-mac",
+    action: "workspace.tab.rename.current",
+    combo: "Cmd+,",
+    when: { mac: true, commandCenter: false },
+    help: {
+      id: "workspace-tab-rename",
+      section: "tabs-panes",
+      label: "Rename current tab",
+    },
+  },
+  {
+    id: "terminal-find-cmd-shift-f-mac",
+    action: "terminal.find",
+    combo: "Cmd+Shift+F",
+    when: { mac: true, commandCenter: false },
+    help: {
+      id: "terminal-find",
+      section: "tabs-panes",
+      label: "Find in terminal",
+    },
+  },
+  {
+    id: "workspace-list-cmd-shift-w-mac",
+    action: "command-center.toggle",
+    combo: "Cmd+Shift+W",
+    when: { mac: true },
+    help: {
+      id: "list-workspaces",
+      section: "workspaces",
+      label: "List workspaces",
+    },
+  },
+  {
+    id: "worktree-new-cmd-shift-p-mac",
+    action: "worktree.new",
+    combo: "Cmd+Shift+P",
+    when: { mac: true, commandCenter: false },
+    help: {
+      id: "new-worktree",
+      section: "workspaces",
+      label: "New feature worktree",
+    },
+  },
+  {
+    id: "workspace-lazygit-open-cmd-g-mac",
+    action: "workspace.lazygit.open",
+    combo: "Cmd+G",
+    when: { mac: true, commandCenter: false },
+    help: {
+      id: "open-lazygit",
+      section: "general",
+      label: "Open lazygit",
+    },
+  },
+  {
+    id: "terminal-save-cmd-s-mac",
+    action: "terminal.save",
+    combo: "Cmd+S",
+    when: { mac: true, commandCenter: false, focusScope: "terminal" },
+    help: {
+      id: "terminal-save",
+      section: "tabs-panes",
+      label: "Save in terminal editor",
+      note: "Sends Escape, :w, Enter to the focused terminal.",
+    },
+  },
+  {
+    id: "terminal-alt-enter-shift-enter-mac",
+    action: "terminal.alt-enter",
+    combo: "Shift+Enter",
+    when: { mac: true, commandCenter: false, focusScope: "terminal" },
+    help: {
+      id: "terminal-alt-enter",
+      section: "tabs-panes",
+      label: "Alternate Enter in terminal",
+      note: "Sends Escape, Enter to the focused terminal.",
     },
   },
 
@@ -1135,7 +1280,7 @@ const SHORTCUT_BINDINGS: readonly ShortcutBinding[] = [
   {
     id: "settings-toggle-cmd-comma-mac",
     action: "settings.toggle",
-    combo: "Cmd+,",
+    combo: "Cmd+Alt+,",
     when: { mac: true, commandCenter: false },
     help: {
       id: "toggle-settings",
@@ -1159,7 +1304,7 @@ const SHORTCUT_BINDINGS: readonly ShortcutBinding[] = [
   {
     id: "view-toggle-focus-cmd-shift-f-mac",
     action: "view.toggle.focus",
-    combo: "Cmd+Shift+F",
+    combo: "Cmd+Alt+F",
     when: { mac: true, commandCenter: false },
     help: {
       id: "toggle-focus",

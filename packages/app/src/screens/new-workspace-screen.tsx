@@ -1674,6 +1674,8 @@ export function NewWorkspaceScreen({
     projects,
     routeProject,
     routeProjectContextViewKey,
+    routeServerId: serverId,
+    routeSourceDirectory: sourceDirectoryProp,
     lastActiveProject,
     allowAllProjects: supportsWorkspaceMultiplicity,
   });

@@ -29,6 +29,7 @@ Terminal frames share the daemon main event loop with all agent traffic. The `ev
 - **Find preserves the inspected xterm viewport, including at the live bottom.** Keep its output anchor inside the existing batched write path. Serializing output to preserve a search result would add terminal latency.
 - **Retained terminal tabs in the focused workspace keep their streams.** Hidden mounted terminals continue applying output, so switching tabs does not resubscribe or request a fresh snapshot. The retained-panel LRU bounds the number of live streams; terminals in an unfocused workspace detach.
 - **Terminal size has one daemon-owned claimant.** Focus and direct interaction send a `claim`; later geometry changes from that connection send `update`. A claim transfers ownership even when the dimensions are unchanged, while an update from any other connection is ignored. This lets an owning pane follow splits and keyboard insets without allowing an idle phone or browser to steal the PTY size.
+- **PR Cockpit shortcuts come from pane content, not repository PR status.** Plain `prcockpit://pr/<owner>/<repo>/<number>` text and OSC8 targets feed a bounded incremental scanner; never rescan the terminal buffer on output. Explicit hyperlink targets must match verbatim; punctuation cleanup applies only to prose. Legacy cell-grid snapshots have no OSC8 metadata, so only their visible URL text can be recovered. A cursor at the logical content end leaves its token unfinished across padding and soft wraps; a cursor inside existing content must not split visible URLs. Raw terminal restores retain both unfinished parser state and hyperlink targets. Agent panes reuse completed timeline results and consume appended text from the latest assistant/thought by stable item ID; non-prefix replacements reset that scanner. Links and parser state stay local to the mounted pane, unchanged link sets retain their array references, and opening a shortcut uses the external URL opener. There is no PR fetch or link persistence.
 
 ## Measuring
 
@@ -41,6 +42,15 @@ Terminal frames share the daemon main event loop with all agent traffic. The `ev
   `git.workspaceService` (daemon-global Git observer ownership), and per-session workspace Git
   subscription totals under `runtime`. Queue wait and execution time are separate because the Git
   command timeout begins only after a command acquires a limiter slot.
+
+### Bounded PR Cockpit smoke/profile
+
+Use synthetic content in a disposable pane, never copied private histories or a live tmux import. Do not restart the main daemon. Emit links from a disposable script rather than echoing URL-bearing shell commands, whose input text also creates shortcuts.
+
+1. Run only `npx vitest run packages/app/src/components/pr-cockpit/links.test.ts packages/app/src/components/pr-cockpit/timeline-links.test.ts --bail=1`. These regressions cover real xterm cursor/padding/wrap snapshots followed by output, cursors inside intact visible URLs, raw restore continuation, strict OSC8 targets, immutable timeline replacements, and unchanged link references.
+2. For a UI smoke, print `prcockpit://pr/example/repo/1` without a newline, restore/reconnect the disposable terminal pane, then print `23\n`. The shortcut must become only `#123`, with no stale `#1`. Repeat at a narrow terminal width. Print an OSC8 target ending in `123.` with the visible label `Review`; it must add no shortcut. Check a second pane remains unchanged.
+3. Record at most ten seconds of a web/Electron Performance trace using synthetic output: seed 100 distinct complete Cockpit links, then send at most 1,000 ordinary 128-byte chunks. Repeat with 1,000 seeded links. After seeding, inspect `CockpitLinkScanner.getLinks` and subscriber stacks for historical link-array work on ordinary writes; compare allocation samples, not only total wall time.
+4. For the timeline selector, use 100 fixed history items and one immutable assistant item with a stable ID, capped at 128 KiB total text over 1,000 appends. Compare with 1,000 history items. Inspect scanner work separately from history aggregation and the full-prefix check needed to reject replacements; only the newly appended suffix should enter the scanner. Include one non-prefix edit to confirm old shortcuts disappear. Do not treat stable-reference assertions as a throughput measurement.
 
 ## Known remaining contention (follow-up candidates)
 

@@ -48,6 +48,10 @@ export type KeyboardActionId =
   | "workspace.pane.close"
   | "workspace.focus.toggle"
   | "workspace.terminal.new"
+  | "terminal.find"
+  | "terminal.input.send"
+  | "workspace.lazygit.open"
+  | "workspace.pr-cockpit.open"
   | "workspace.browser.new"
   | "sidebar.toggle.right"
   | "sidebar.toggle.both"
@@ -110,6 +114,10 @@ export type KeyboardActionDefinition =
   | { id: "workspace.pane.close"; scope: KeyboardActionScope }
   | { id: "workspace.focus.toggle"; scope: KeyboardActionScope }
   | { id: "workspace.terminal.new"; scope: KeyboardActionScope }
+  | { id: "terminal.find"; scope: KeyboardActionScope }
+  | { id: "terminal.input.send"; scope: KeyboardActionScope; data: string }
+  | { id: "workspace.lazygit.open"; scope: KeyboardActionScope }
+  | { id: "workspace.pr-cockpit.open"; scope: KeyboardActionScope }
   | { id: "workspace.browser.new"; scope: KeyboardActionScope }
   | { id: "sidebar.toggle.right"; scope: KeyboardActionScope }
   | { id: "sidebar.toggle.both"; scope: KeyboardActionScope }

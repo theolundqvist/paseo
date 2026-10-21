@@ -27,6 +27,7 @@ export type ShortcutAction =
   | { kind: "dispatch"; action: KeyboardActionDefinition }
   | { kind: "navigate-workspace"; serverId: string; workspaceId: string }
   | { kind: "navigate-last-workspace" }
+  | { kind: "navigate-previous-workspace" }
   | { kind: "router-replace"; route: string }
   | { kind: "router-back" }
   | { kind: "router-push"; route: string }
@@ -53,6 +54,12 @@ const PASSTHROUGH_DISPATCH: Record<string, KeyboardActionDefinition> = {
   "worktree.new": { id: "worktree.new", scope: "sidebar" },
   "workspace.terminal.new": { id: "workspace.terminal.new", scope: "workspace" },
   "workspace.tab.close.current": { id: "workspace.tab.close-current", scope: "workspace" },
+  "workspace.tab.rename.current": { id: "workspace.tab.rename-current", scope: "workspace" },
+  "terminal.find": { id: "terminal.find", scope: "workspace" },
+  "terminal.save": { id: "terminal.input.send", scope: "workspace", data: "\u001b:w\r" },
+  "terminal.alt-enter": { id: "terminal.input.send", scope: "workspace", data: "\u001b\r" },
+  "workspace.lazygit.open": { id: "workspace.lazygit.open", scope: "workspace" },
+  "workspace.pr-cockpit.open": { id: "workspace.pr-cockpit.open", scope: "workspace" },
   "sidebar.toggle.right": { id: "sidebar.toggle.right", scope: "sidebar" },
   "workspace.pane.split.right": { id: "workspace.pane.split.right", scope: "workspace" },
   "workspace.pane.split.down": { id: "workspace.pane.split.down", scope: "workspace" },
@@ -206,6 +213,8 @@ export function routeKeyboardShortcut(
       return routeWorkspaceNavigateIndex(input.payload, ctx);
     case "workspace.navigate.relative":
       return routeWorkspaceNavigateRelative(input.payload, ctx);
+    case "workspace.navigate.last":
+      return { kind: "navigate-previous-workspace" };
     case "message-input.action":
       return routeMessageInputAction(input.payload);
     case "agent.new":

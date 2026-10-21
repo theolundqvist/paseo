@@ -5,17 +5,11 @@ import {
   collectStandaloneTerminalIds,
   reconcilePendingScriptTerminals,
   removeTerminalFromPayload,
-  upsertCreatedTerminalPayload,
   type ListTerminalsPayload,
 } from "@/screens/workspace/terminals/state";
-import type { CreateTerminalResponse } from "@getpaseo/protocol/messages";
 
 function listedTerminal(id: string): ListTerminalsPayload["terminals"][number] {
   return { id, name: id, title: id };
-}
-
-function createdTerminal(id: string): NonNullable<CreateTerminalResponse["payload"]["terminal"]> {
-  return { id, name: id, cwd: "/repo", title: id };
 }
 
 describe("workspace terminal state", () => {
@@ -69,27 +63,13 @@ describe("workspace terminal state", () => {
     ).toEqual(["terminal-2"]);
   });
 
-  it("updates terminal cache entries for created and closed terminals", () => {
+  it("removes closed terminals from the workspace cache", () => {
     const current: ListTerminalsPayload = {
       cwd: "/repo",
       requestId: "existing",
       terminals: [listedTerminal("terminal-1")],
     };
 
-    expect(
-      upsertCreatedTerminalPayload({
-        current,
-        terminal: createdTerminal("terminal-2"),
-        workspaceDirectory: "/repo",
-      }),
-    ).toEqual({
-      cwd: "/repo",
-      requestId: "existing",
-      terminals: [
-        listedTerminal("terminal-1"),
-        { id: "terminal-2", name: "terminal-2", title: "terminal-2" },
-      ],
-    });
     expect(removeTerminalFromPayload("terminal-1")(current)).toEqual({
       cwd: "/repo",
       requestId: "existing",

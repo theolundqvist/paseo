@@ -22,6 +22,7 @@ import {
   createPersistedProjectRecord,
   createPersistedWorkspaceRecord,
 } from "./workspace-registry.js";
+import type { SessionOutboundMessage } from "./messages.js";
 
 const WORKSPACE_A = "wks_same_cwd_a";
 const WORKSPACE_B = "wks_same_cwd_b";
@@ -277,6 +278,37 @@ async function waitForPermission(client: DaemonClient, agentId: string) {
   const parked = await client.waitForFinish(agentId, PERMISSION_WAIT_MS);
   expect(parked.status).toBe("permission");
   return parked;
+}
+
+type TerminalsChangedPayload = Extract<
+  SessionOutboundMessage,
+  { type: "terminals_changed" }
+>["payload"];
+
+interface OwnedTerminalObservation {
+  terminalIds: string[][];
+  ready: Promise<unknown>;
+  release(): Promise<void>;
+}
+
+function observeOwnedTerminalIds(
+  client: DaemonClient,
+  input: { cwd: string; workspaceId: string },
+): OwnedTerminalObservation {
+  const terminalIds: string[][] = [];
+  const subscription = client.observeTerminals(input);
+  function record(payload: TerminalsChangedPayload): void {
+    // Legacy clients route terminal directory pushes by cwd alone.
+    if (payload.workspaceId !== input.workspaceId) return;
+    terminalIds.push(payload.terminals.map((terminal) => terminal.id).sort());
+  }
+  subscription.subscribe({
+    snapshot: record,
+    update: (message) => {
+      if (message.type === "terminals_changed") record(message.payload);
+    },
+  });
+  return { terminalIds, ready: subscription.ready, release: () => subscription.release() };
 }
 
 test("daemon bootstrap migrates cwd-only legacy agents before same-cwd workspaces are added", async () => {
@@ -627,3 +659,107 @@ test("two workspaces sharing one cwd compute agent status per workspaceId", asyn
     rmSync(cwd, { recursive: true, force: true });
   }
 }, 180000);
+
+test("workspace terminal subscriptions follow ownership across launch directories", async () => {
+  const { paseoHomeRoot, cwd } = seedSameCwdWorkspaces();
+  const checkoutRoot = mkdtempSync(path.join(tmpdir(), "paseo-owned-terminal-checkouts-"));
+  const checkoutA = path.join(checkoutRoot, "checkout-a", "packages", "app");
+  const checkoutB = path.join(checkoutRoot, "checkout-b");
+  const checkoutC = path.join(checkoutRoot, "checkout-c");
+  for (const directory of [checkoutA, checkoutB, checkoutC]) {
+    mkdirSync(directory, { recursive: true });
+  }
+  const daemon = await createTestPaseoDaemon({ paseoHomeRoot, mcpEnabled: false });
+  const client = new DaemonClient({
+    url: `ws://127.0.0.1:${daemon.port}/ws`,
+    appVersion: "0.1.82",
+  });
+  const liveTerminalIds = new Set<string>();
+  async function createTerminal(input: {
+    cwd: string;
+    workspaceId: string;
+    name: string;
+  }): Promise<string> {
+    const created = await client.createTerminal(input.cwd, input.name, undefined, {
+      workspaceId: input.workspaceId,
+      command: "/bin/cat",
+    });
+    const terminalId = created.terminal?.id;
+    if (!terminalId) {
+      throw new Error(created.error ?? `Expected terminal ${input.name}`);
+    }
+    liveTerminalIds.add(terminalId);
+    return terminalId;
+  }
+
+  try {
+    await client.connect();
+    const original = await createTerminal({ cwd, workspaceId: WORKSPACE_A, name: "Original" });
+    const gitA = await createTerminal({ cwd: checkoutA, workspaceId: WORKSPACE_A, name: "A" });
+    const gitB = await createTerminal({ cwd: checkoutB, workspaceId: WORKSPACE_A, name: "B" });
+    const sibling = await createTerminal({ cwd, workspaceId: WORKSPACE_B, name: "Sibling" });
+    const siblingCheckout = await createTerminal({
+      cwd: checkoutA,
+      workspaceId: WORKSPACE_B,
+      name: "Sibling checkout",
+    });
+
+    const owned = observeOwnedTerminalIds(client, { cwd, workspaceId: WORKSPACE_A });
+    const other = observeOwnedTerminalIds(client, { cwd, workspaceId: WORKSPACE_B });
+    await Promise.all([owned.ready, other.ready]);
+
+    expect(owned.terminalIds[0]).toEqual([original, gitA, gitB].sort());
+    expect(other.terminalIds[0]).toEqual([sibling, siblingCheckout].sort());
+    const listed = await client.listTerminals(cwd, undefined, { workspaceId: WORKSPACE_A });
+    expect(
+      listed.terminals
+        .map((terminal) => ({ id: terminal.id, cwd: terminal.cwd }))
+        .sort((left, right) => left.id.localeCompare(right.id)),
+    ).toEqual(
+      [
+        { id: original, cwd },
+        { id: gitA, cwd: checkoutA },
+        { id: gitB, cwd: checkoutB },
+      ].sort((left, right) => left.id.localeCompare(right.id)),
+    );
+
+    // The sibling shares the directory but owns a separate subscription slot.
+    await other.release();
+    const gitC = await createTerminal({ cwd: checkoutC, workspaceId: WORKSPACE_A, name: "C" });
+    await expect
+      .poll(() => owned.terminalIds.at(-1), { timeout: 10_000 })
+      .toEqual([original, gitA, gitB, gitC].sort());
+
+    const siblingElsewhere = await createTerminal({
+      cwd: checkoutC,
+      workspaceId: WORKSPACE_B,
+      name: "Sibling elsewhere",
+    });
+    await client.killTerminal(gitB);
+    liveTerminalIds.delete(gitB);
+    await expect
+      .poll(() => owned.terminalIds.at(-1), { timeout: 10_000 })
+      .toEqual([original, gitA, gitC].sort());
+
+    const siblingIds = new Set([sibling, siblingCheckout, siblingElsewhere]);
+    expect(
+      owned.terminalIds.every((terminalIds) =>
+        terminalIds.every((terminalId) => !siblingIds.has(terminalId)),
+      ),
+    ).toBe(true);
+    const relisted = await client.listTerminals(cwd, undefined, { workspaceId: WORKSPACE_A });
+    expect(relisted.terminals.map((terminal) => terminal.id).sort()).toEqual(
+      owned.terminalIds.at(-1),
+    );
+    await owned.release();
+  } finally {
+    await Promise.allSettled(
+      [...liveTerminalIds].map((terminalId) => client.killTerminal(terminalId)),
+    );
+    await client.close().catch(() => undefined);
+    await daemon.close();
+    rmSync(cwd, { recursive: true, force: true });
+    rmSync(checkoutRoot, { recursive: true, force: true });
+    rmSync(paseoHomeRoot, { recursive: true, force: true });
+  }
+}, 30_000);

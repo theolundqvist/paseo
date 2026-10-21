@@ -25,6 +25,8 @@ interface NewWorkspaceProjectPickerInput {
   projects: HostProjectListItem[];
   routeProject: HostProjectListItem | null;
   routeProjectContextViewKey: string | null;
+  routeServerId?: string;
+  routeSourceDirectory?: string;
   lastActiveProject: HostProjectListItem | null;
   allowAllProjects: boolean;
 }
@@ -86,6 +88,8 @@ export function useNewWorkspaceProjectPicker({
   projects,
   routeProject,
   routeProjectContextViewKey,
+  routeServerId,
+  routeSourceDirectory,
   lastActiveProject,
   allowAllProjects,
 }: NewWorkspaceProjectPickerInput): NewWorkspaceProjectPickerState {
@@ -181,12 +185,19 @@ export function useNewWorkspaceProjectPicker({
     },
     [allowAllProjects, manualSelectionContextKey, projectByOptionId],
   );
+  const useRouteDirectory =
+    activeSelection.source === "initial" &&
+    selectionContext.initialProjectSource === "route" &&
+    selectedServerId === routeServerId;
+  const projectSourceDirectory = selectedProject
+    ? getHostProjectSourceDirectory(selectedProject, selectedServerId)
+    : null;
+  const selectedSourceDirectory =
+    (useRouteDirectory ? routeSourceDirectory?.trim() : null) || projectSourceDirectory;
 
   return {
     selectedProject,
-    selectedSourceDirectory: selectedProject
-      ? getHostProjectSourceDirectory(selectedProject, selectedServerId)
-      : null,
+    selectedSourceDirectory,
     projectPickerOptions,
     projectByOptionId,
     selectedProjectOptionId: selectedProject ? projectOptionId(selectedProject.viewKey) : "",

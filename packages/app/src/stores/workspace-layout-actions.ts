@@ -1222,7 +1222,9 @@ export function restoreWorkspaceLayout(
   };
 }
 
-export function getFocusedBrowserId(layout: WorkspaceLayout | null | undefined): string | null {
+export function getFocusedTabInLayout(
+  layout: WorkspaceLayout | null | undefined,
+): WorkspaceTab | null {
   if (!layout) {
     return null;
   }
@@ -1230,10 +1232,15 @@ export function getFocusedBrowserId(layout: WorkspaceLayout | null | undefined):
   if (!focusedPane?.focusedTabId || focusedPane.hidden === true) {
     return null;
   }
-  const focusedTab = collectAllTabs(layout.root).find(
-    (tab) => tab.tabId === focusedPane.focusedTabId,
+  return (
+    (focusedPane as SplitPaneInternal).tabs.find((tab) => tab.tabId === focusedPane.focusedTabId) ??
+    null
   );
-  return focusedTab?.target.kind === "browser" ? focusedTab.target.browserId : null;
+}
+
+export function getFocusedBrowserId(layout: WorkspaceLayout | null | undefined): string | null {
+  const target = getFocusedTabInLayout(layout)?.target;
+  return target?.kind === "browser" ? target.browserId : null;
 }
 
 export function createDefaultLayout(): WorkspaceLayout {

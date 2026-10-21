@@ -36,6 +36,8 @@ function parseStoredWorkspaceSelection(stored: string | null): ActiveWorkspaceSe
 
 export function createLastWorkspaceSelectionStore(storage: LastWorkspaceSelectionStorage) {
   let selection: ActiveWorkspaceSelection | null = null;
+  // Session-local history is separate from the persisted startup destination.
+  let previousSelection: ActiveWorkspaceSelection | null = null;
   let hydrated = false;
   let hydrationPromise: Promise<void> | null = null;
   let revision = 0;
@@ -58,6 +60,7 @@ export function createLastWorkspaceSelectionStore(storage: LastWorkspaceSelectio
     ) {
       return;
     }
+    previousSelection = selection;
     selection = normalized;
     revision += 1;
     notifyListeners();
@@ -95,6 +98,7 @@ export function createLastWorkspaceSelectionStore(storage: LastWorkspaceSelectio
 
   return {
     getSelection: () => selection,
+    getPreviousSelection: () => previousSelection,
     hydrate,
     isHydrated: () => hydrated,
     remember,

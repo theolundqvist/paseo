@@ -9,6 +9,7 @@ import {
 } from "@/stores/last-workspace-selection";
 import {
   navigateToLastWorkspace as navigateToLastWorkspacePure,
+  navigateToPreviousWorkspace as navigateToPreviousWorkspacePure,
   navigateToWorkspace as navigateToWorkspacePure,
   parseActiveWorkspaceSelection,
   type NavigateToWorkspaceDeps,
@@ -67,6 +68,13 @@ export function navigateToLastWorkspace(): boolean {
   return navigateToLastWorkspacePure({
     ...navigateDeps(),
     getLastWorkspaceSelection: () => lastWorkspaceSelectionStore.getSelection(),
+  });
+}
+
+export function navigateToPreviousWorkspace(): boolean {
+  return navigateToPreviousWorkspacePure({
+    ...navigateDeps(),
+    getPreviousWorkspaceSelection: () => lastWorkspaceSelectionStore.getPreviousSelection(),
   });
 }
 

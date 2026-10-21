@@ -16,6 +16,7 @@ import {
 import { resolveKeyboardFocusScope } from "@/keyboard/focus-scope";
 import {
   buildBrowserKeyboardPolicy,
+  isBrowserShortcutKey,
   parseBrowserShortcutInput,
   shouldPublishBrowserShortcutPolicy,
 } from "@/desktop/browser/shortcuts";
@@ -38,6 +39,8 @@ import { hasActiveWebOverlay } from "@/lib/overlay-root";
 import {
   type ActiveWorkspaceSelection,
   navigateToLastWorkspace,
+  navigateToPreviousWorkspace,
+  getLastWorkspaceSelection,
   useActiveWorkspaceSelection,
 } from "@/stores/navigation-active-workspace-store";
 import { dispatchTopWebOverlayKeyDown } from "@/lib/overlay-root";
@@ -117,10 +120,8 @@ export function useKeyboardShortcuts({
     publishBrowserShortcutPolicy();
   }, [isDesktopApp, publishBrowserShortcutPolicy]);
 
-  // Only the modifier that actually performs the workspace-index jump on this
-  // runtime should reveal the sidebar number badges (Alt on web, Cmd on
-  // desktop Mac, Ctrl on desktop non-Mac). The store ORs altDown/cmdOrCtrlDown
-  // to drive badge visibility, so we set the flag matching this runtime.
+  // Only a single-modifier workspace-index shortcut reveals sidebar badges.
+  // Multi-modifier shortcuts (including Cmd+Alt+digit on Mac) show none.
   // Derived from the effective bindings: `null` when the user unassigned or
   // rebound the jump shortcut, and no `event.key` ever equals null, so the
   // badges simply never appear.
@@ -167,6 +168,13 @@ export function useKeyboardShortcuts({
     "cycle-theme": cycleTheme,
   };
 
+  const navigateToPreviousKeyboardWorkspace = (): boolean => {
+    if (navigateToPreviousWorkspace()) {
+      keyboardWorkspaceSelectionRef.current = getLastWorkspaceSelection();
+    }
+    return true;
+  };
+
   const performShortcutAction = (
     action: ShortcutAction,
     event: KeyboardEvent | null,
@@ -190,6 +198,8 @@ export function useKeyboardShortcuts({
         }
         router.replace(buildOpenProjectRoute());
         return true;
+      case "navigate-previous-workspace":
+        return navigateToPreviousKeyboardWorkspace();
       case "router-replace":
         router.replace(action.route as Parameters<typeof router.replace>[0]);
         return true;
@@ -325,7 +335,13 @@ export function useKeyboardShortcuts({
   // any in-progress chord. Stable events let them read the latest render instead
   // of being re-registered whenever a route, callback, or selection changes.
   const handleKeyDown = useStableEvent((event: KeyboardEvent) => {
-    if (!shouldHandle()) {
+    if (!shouldHandle() || event.defaultPrevented) {
+      return;
+    }
+    if (
+      isBrowserShortcutKey(event, "l") &&
+      document.querySelector('[data-browser-keyboard-owner="true"]')
+    ) {
       return;
     }
 

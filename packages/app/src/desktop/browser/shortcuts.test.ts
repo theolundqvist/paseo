@@ -178,18 +178,43 @@ describe("buildBrowserKeyboardPolicy", () => {
     }
   });
 
-  it("marks editable-only exclusions for enforcement inside the guest", () => {
-    const bindings = buildEffectiveBindings({});
-    const policy = buildBrowserKeyboardPolicy({ bindings, isMac: true, isDesktop: true });
-
-    expect(policy.prefixes).toContainEqual({
-      alt: false,
-      code: "ArrowLeft",
-      control: false,
-      editable: false,
-      meta: true,
-      shift: true,
+  it("keeps address focus native while allowing a rebound workspace shortcut", () => {
+    const defaults = buildBrowserKeyboardPolicy({
+      bindings: buildEffectiveBindings({}),
+      isMac: true,
+      isDesktop: true,
     });
+    expect(
+      defaults.prefixes.some(
+        (prefix) =>
+          prefix.code === "KeyL" && prefix.meta && !prefix.control && !prefix.alt && !prefix.shift,
+      ),
+    ).toBe(false);
+
+    const bindings = buildEffectiveBindings({ "workspace-last-cmd-l-mac": "Cmd+Shift+F12" });
+    const policy = buildBrowserKeyboardPolicy({ bindings, isMac: true, isDesktop: true });
+    expect(policy.prefixes.some((prefix) => prefix.code === "F12" && prefix.shift)).toBe(true);
+    const result = resolveKeyboardShortcut({
+      event: {
+        key: "F12",
+        code: "F12",
+        altKey: false,
+        ctrlKey: false,
+        metaKey: true,
+        repeat: false,
+        shiftKey: true,
+      },
+      context: {
+        commandCenterOpen: false,
+        focusScope: "browser",
+        isDesktop: true,
+        isMac: true,
+      },
+      chordState: { candidateIndices: [], step: 0, timeoutId: null },
+      onChordReset: () => undefined,
+      bindings,
+    });
+    expect(result.match?.action).toBe("workspace.navigate.last");
   });
 
   it("does not publish plain browser keys", () => {
