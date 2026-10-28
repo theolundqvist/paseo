@@ -622,7 +622,7 @@ export const ru: TranslationResources = {
       collapse: "Свернуть связанные PR",
       expand: "Развернуть связанные PR",
       hidden: "{{key}} скрыт из наложения этого чата",
-      restored: "{{key}} восстановлен в наложении этого чата",
+      restored: "{{key}} восстановлен",
       undo: "Отменить",
     },
     tabs: {

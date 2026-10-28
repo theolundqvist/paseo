@@ -616,7 +616,7 @@ export const ko: TranslationResources = {
       collapse: "연결된 풀 리퀘스트 접기",
       expand: "연결된 풀 리퀘스트 펼치기",
       hidden: "이 채팅의 오버레이에서 {{key}} 숨김",
-      restored: "이 채팅의 오버레이에 {{key}} 복원됨",
+      restored: "{{key}} 복원됨",
       undo: "실행 취소",
     },
     tabs: {

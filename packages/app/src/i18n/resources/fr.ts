@@ -620,7 +620,7 @@ export const fr: TranslationResources = {
       collapse: "Réduire les pull requests liées",
       expand: "Développer les pull requests liées",
       hidden: "{{key}} masquée de la superposition de cette conversation",
-      restored: "{{key}} rétablie dans la superposition de cette conversation",
+      restored: "{{key}} rétablie",
       undo: "Annuler",
     },
     tabs: {

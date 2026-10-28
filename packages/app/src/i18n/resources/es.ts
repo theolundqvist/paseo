@@ -621,7 +621,7 @@ export const es: TranslationResources = {
       collapse: "Contraer pull requests vinculadas",
       expand: "Expandir pull requests vinculadas",
       hidden: "{{key}} ocultada de la superposición de este chat",
-      restored: "{{key}} restaurada en la superposición de este chat",
+      restored: "{{key}} restaurada",
       undo: "Deshacer",
     },
     tabs: {
