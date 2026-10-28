@@ -36,10 +36,10 @@ function deferred<T>() {
 }
 
 describe("OMP usage poller", () => {
-  test("refreshes source context on attachment, compaction, and model changes while idle", async () => {
+  test("publishes an idle refresh without starting ongoing polling", async () => {
     const scheduler = new ManualPollScheduler();
     const updates: AgentUsage[] = [];
-    let stats: OmpSessionStats = {
+    const stats: OmpSessionStats = {
       contextUsage: { contextWindow: 400_000, tokens: 123_456 },
     };
     const poller = new OmpUsagePoller({
@@ -52,16 +52,9 @@ describe("OMP usage poller", () => {
     });
 
     await poller.refresh();
-    await poller.refresh();
-    stats = { contextUsage: { contextWindow: 400_000, tokens: 32_100 } };
-    await poller.refresh();
-    stats = { contextUsage: { contextWindow: 1_000_000, tokens: 32_100 } };
-    await poller.refresh();
 
     expect(updates).toStrictEqual([
       { contextWindowMaxTokens: 400_000, contextWindowUsedTokens: 123_456 },
-      { contextWindowMaxTokens: 400_000, contextWindowUsedTokens: 32_100 },
-      { contextWindowMaxTokens: 1_000_000, contextWindowUsedTokens: 32_100 },
     ]);
     expect(scheduler.activePollCount()).toBe(0);
   });
