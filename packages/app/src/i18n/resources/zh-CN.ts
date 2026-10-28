@@ -614,6 +614,9 @@ export const zhCN: TranslationResources = {
       title: "关联的拉取请求",
       collapse: "收起关联的拉取请求",
       expand: "展开关联的拉取请求",
+      hidden: "已在此聊天的悬浮层中隐藏 {{key}}",
+      restored: "已在此聊天的悬浮层中恢复 {{key}}",
+      undo: "撤销",
     },
     tabs: {
       loading: "正在加载...",

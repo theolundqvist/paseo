@@ -619,6 +619,9 @@ export const ptBR: TranslationResources = {
       title: "Pull requests vinculadas",
       collapse: "Recolher pull requests vinculadas",
       expand: "Expandir pull requests vinculadas",
+      hidden: "{{key}} ocultada da sobreposição desta conversa",
+      restored: "{{key}} restaurada na sobreposição desta conversa",
+      undo: "Desfazer",
     },
     tabs: {
       loading: "Carregando...",

@@ -611,6 +611,9 @@ export const en = {
       title: "Linked pull requests",
       collapse: "Collapse linked pull requests",
       expand: "Expand linked pull requests",
+      hidden: "{{key}} hidden from this chat's overlay",
+      restored: "{{key}} restored to this chat's overlay",
+      undo: "Undo",
     },
     tabs: {
       loading: "Loading...",

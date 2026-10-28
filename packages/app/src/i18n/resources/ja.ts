@@ -620,6 +620,9 @@ export const ja: TranslationResources = {
       title: "リンクされたプルリクエスト",
       collapse: "リンクされたプルリクエストを折りたたむ",
       expand: "リンクされたプルリクエストを展開",
+      hidden: "このチャットのオーバーレイから {{key}} を非表示にしました",
+      restored: "このチャットのオーバーレイに {{key}} を再表示しました",
+      undo: "元に戻す",
     },
     tabs: {
       loading: "読み込み中...",
