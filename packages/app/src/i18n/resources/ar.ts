@@ -614,6 +614,9 @@ export const ar: TranslationResources = {
       title: "طلبات السحب المرتبطة",
       collapse: "طي طلبات السحب المرتبطة",
       expand: "توسيع طلبات السحب المرتبطة",
+      hidden: "تم إخفاء {{key}} من تراكب هذه المحادثة",
+      restored: "تمت استعادة {{key}}",
+      undo: "تراجع",
     },
     tabs: {
       loading: "تحميل...",

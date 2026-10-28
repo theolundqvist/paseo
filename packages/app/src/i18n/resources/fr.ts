@@ -619,6 +619,9 @@ export const fr: TranslationResources = {
       title: "Pull requests liées",
       collapse: "Réduire les pull requests liées",
       expand: "Développer les pull requests liées",
+      hidden: "{{key}} masquée de la superposition de cette conversation",
+      restored: "{{key}} rétablie",
+      undo: "Annuler",
     },
     tabs: {
       loading: "Chargement…",

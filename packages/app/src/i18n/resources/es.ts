@@ -620,6 +620,9 @@ export const es: TranslationResources = {
       title: "Pull requests vinculadas",
       collapse: "Contraer pull requests vinculadas",
       expand: "Expandir pull requests vinculadas",
+      hidden: "{{key}} ocultada de la superposición de este chat",
+      restored: "{{key}} restaurada",
+      undo: "Deshacer",
     },
     tabs: {
       loading: "Cargando...",

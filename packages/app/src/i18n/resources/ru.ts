@@ -621,6 +621,9 @@ export const ru: TranslationResources = {
       title: "Связанные PR",
       collapse: "Свернуть связанные PR",
       expand: "Развернуть связанные PR",
+      hidden: "{{key}} скрыт из наложения этого чата",
+      restored: "{{key}} восстановлен",
+      undo: "Отменить",
     },
     tabs: {
       loading: "Загрузка...",
