@@ -13,10 +13,12 @@ import { ChevronDown, ChevronUp, GitPullRequest } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { ToolbarButton } from "@/components/ui/pane-content-toolbar";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/contexts/toast-context";
 import type { Theme } from "@/styles/theme";
 import { inlineUnistylesStyle } from "@/styles/unistyles-inline-style";
 import { openExternalUrl } from "@/utils/open-external-url";
-import { buildPrCockpitEmbedUrl, parsePrCockpitEmbedMessage } from "./embed";
+import { buildPrCockpitEmbedUrl, readPrCockpitFrameMessage } from "./embed";
 import type { PrCockpitOverlayProps } from "./overlay";
 import { useLinkedPullRequestKeys } from "./use-linked-pull-request-keys";
 import { usePrCockpitChatScroll, type ChatScrollState } from "./chat-scroll-state";
@@ -26,6 +28,13 @@ import {
   togglePrCockpitCollapsed,
 } from "./collapse-state";
 import { resolvePrCockpitOrigin } from "./origin";
+import {
+  EMPTY_HIDDEN_KEYS,
+  filterHiddenPullRequestKeys,
+  prCockpitSessionKey,
+  usePrCockpitHiddenStore,
+  usePrCockpitHiddenStoreHydrated,
+} from "./hidden-store";
 
 const OVERLAY_WIDTH = 340;
 const OVERLAY_INSET = 8;
@@ -40,7 +49,9 @@ const FRAME_SANDBOX = "allow-scripts allow-same-origin";
 const ThemedGitPullRequest = withUnistyles(GitPullRequest);
 const ThemedChevronUp = withUnistyles(ChevronUp);
 const ThemedChevronDown = withUnistyles(ChevronDown);
-const mutedColorMapping = (theme: Theme) => ({ color: theme.colors.foregroundMuted });
+const mutedColorMapping = (theme: Theme) => ({
+  color: theme.colors.foregroundMuted,
+});
 
 interface PaneSize {
   width: number;
@@ -56,7 +67,25 @@ export function PrCockpitOverlay({ serverId, agentId, isPointerSuspended }: PrCo
   const keys = useLinkedPullRequestKeys({ serverId, agentId });
   const scroll = usePrCockpitChatScroll(serverId, agentId);
   const signature = keys.join(",");
-  const sessionKey = `${serverId}:${agentId}`;
+  const sessionKey = prCockpitSessionKey({ serverId, agentId });
+  const hiddenKeys = usePrCockpitHiddenStore(
+    (state) => state.hiddenBySession[sessionKey] ?? EMPTY_HIDDEN_KEYS,
+  );
+  const hiddenStoreHydrated = usePrCockpitHiddenStoreHydrated();
+  const hide = usePrCockpitHiddenStore((state) => state.hide);
+  const toast = useToast();
+  const hidePullRequest = useCallback(
+    (key: string) => {
+      const currentHidden = usePrCockpitHiddenStore.getState().hiddenBySession[sessionKey];
+      if (currentHidden?.includes(key.toLowerCase())) return;
+      hide({ serverId, agentId, key });
+      toast.show(
+        <HiddenPullRequestNotice serverId={serverId} agentId={agentId} pullRequestKey={key} />,
+        { durationMs: 6000 },
+      );
+    },
+    [serverId, agentId, sessionKey, hide, toast],
+  );
   const { data: origin } = useFetchQuery({
     queryKey: ["prCockpitOrigin"],
     queryFn: resolvePrCockpitOrigin,
@@ -71,8 +100,14 @@ export function PrCockpitOverlay({ serverId, agentId, isPointerSuspended }: PrCo
     return () => clearTimeout(timer);
   }, [sessionKey, signature]);
 
-  const visibleSignature = settled.sessionKey === sessionKey ? settled.signature : signature;
-  if (signature === "" || visibleSignature === "" || !origin) {
+  // Only transcript discovery is debounced. Local hides must remove an advertised row now,
+  // including when the transcript is still streaming or this session is revisited.
+  const settledSignature = settled.sessionKey === sessionKey ? settled.signature : signature;
+  const visibleSignature = filterHiddenPullRequestKeys(
+    settledSignature.split(","),
+    hiddenKeys,
+  ).join(",");
+  if (!hiddenStoreHydrated || signature === "" || visibleSignature === "" || !origin) {
     return null;
   }
   return (
@@ -82,7 +117,37 @@ export function PrCockpitOverlay({ serverId, agentId, isPointerSuspended }: PrCo
       signature={visibleSignature}
       scroll={scroll}
       isPointerSuspended={isPointerSuspended}
+      onHide={hidePullRequest}
     />
+  );
+}
+
+function HiddenPullRequestNotice({
+  serverId,
+  agentId,
+  pullRequestKey,
+}: {
+  serverId: string;
+  agentId: string;
+  pullRequestKey: string;
+}) {
+  const restore = usePrCockpitHiddenStore((state) => state.restore);
+  const toast = useToast();
+  const { t } = useTranslation();
+  const undo = useCallback(() => {
+    restore({ serverId, agentId, key: pullRequestKey });
+    toast.show(t("workspace.linkedPullRequests.restored", { key: pullRequestKey }));
+  }, [serverId, agentId, pullRequestKey, restore, toast, t]);
+
+  return (
+    <View style={styles.hiddenFeedback}>
+      <Text style={styles.feedbackText}>
+        {t("workspace.linkedPullRequests.hidden", { key: pullRequestKey })}
+      </Text>
+      <Button variant="ghost" size="sm" onPress={undo}>
+        {t("workspace.linkedPullRequests.undo")}
+      </Button>
+    </View>
   );
 }
 
@@ -91,11 +156,13 @@ function PrCockpitEmbed({
   signature,
   isPointerSuspended,
   scroll,
+  onHide,
 }: {
   origin: string;
   signature: string;
   isPointerSuspended: boolean;
   scroll: ChatScrollState;
+  onHide: (key: string) => void;
 }) {
   const { t } = useTranslation();
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
@@ -106,6 +173,7 @@ function PrCockpitEmbed({
   );
   const [initialEmbedUrl] = useState(embedUrl);
   const appliedEmbedUrlRef = useRef(embedUrl);
+  const advertisedKeysRef = useRef(signature.split(","));
   const [contentHeight, setContentHeight] = useState(0);
   const [paneSize, setPaneSize] = useState<PaneSize | null>(null);
   const [collapseState, toggleCollapsedState] = useReducer(
@@ -130,17 +198,17 @@ function PrCockpitEmbed({
     }
     appliedEmbedUrlRef.current = embedUrl;
     frameWindow.location.replace(embedUrl);
-  }, [embedUrl]);
+    advertisedKeysRef.current = signature.split(",");
+  }, [embedUrl, signature]);
 
   useEffect(() => {
     function receiveMessage(event: MessageEvent) {
       const iframe = iframeRef.current;
-      const isFromFrame =
-        event.origin === origin && iframe !== null && event.source === iframe.contentWindow;
-      if (!isFromFrame) {
-        return;
-      }
-      const message = parsePrCockpitEmbedMessage(event.data);
+      const message = readPrCockpitFrameMessage(event, {
+        origin,
+        frameWindow: iframe?.contentWindow ?? null,
+        advertisedKeys: advertisedKeysRef.current,
+      });
       if (message === null) {
         return;
       }
@@ -148,16 +216,20 @@ function PrCockpitEmbed({
         setContentHeight(Math.ceil(message.height));
         return;
       }
+      if (message.type === "hide") {
+        onHide(message.key);
+        return;
+      }
       // Clicking a row moves keyboard focus into the frame; hand it back so app shortcuts
       // keep working once the PR opens.
-      if (document.activeElement === iframe) {
+      if (iframe && document.activeElement === iframe) {
         iframe.blur();
       }
       void openExternalUrl(message.url);
     }
     window.addEventListener("message", receiveMessage);
     return () => window.removeEventListener("message", receiveMessage);
-  }, [origin]);
+  }, [origin, onHide]);
 
   const handleLayout = useCallback((event: LayoutChangeEvent) => {
     const { width, height } = event.nativeEvent.layout;
@@ -244,6 +316,15 @@ function PrCockpitEmbed({
 }
 
 const styles = StyleSheet.create((theme) => ({
+  hiddenFeedback: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[2],
+  },
+  feedbackText: {
+    color: theme.colors.foreground,
+    fontSize: theme.fontSize.sm,
+  },
   layer: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 30,

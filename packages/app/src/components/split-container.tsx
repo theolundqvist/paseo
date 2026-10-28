@@ -1357,11 +1357,13 @@ function SplitPaneView({
               onFocusPane={stableOnFocusPane}
               buildPaneContentModel={buildPaneContentModel}
             />
-            <PrCockpitOverlay
-              serverId={normalizedServerId}
-              agentId={activeAgentId}
-              isPointerSuspended={activeDragTabId !== null}
-            />
+            {activeAgentId !== null ? (
+              <PrCockpitOverlay
+                serverId={normalizedServerId}
+                agentId={activeAgentId}
+                isPointerSuspended={activeDragTabId !== null}
+              />
+            ) : null}
             <SplitDropZone paneId={pane.id} active={showDropZones} preview={dropPreview} />
           </View>
         </PrCockpitScrollProvider>

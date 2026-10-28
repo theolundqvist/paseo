@@ -2,6 +2,12 @@ const OWNER = "[A-Za-z0-9][A-Za-z0-9-]{0,38}";
 const REPO = "[A-Za-z0-9._-]{1,100}";
 const NUMBER = "[0-9]{1,10}";
 
+const PULL_REQUEST_KEY = new RegExp(`^${OWNER}/(?!\\.{1,2}#)${REPO}#[1-9][0-9]{0,9}(?![\\s\\S])`);
+
+export function isPullRequestKey(value: string): boolean {
+  return PULL_REQUEST_KEY.test(value);
+}
+
 const PULL_REQUEST_REFERENCE = new RegExp(
   `(?<![\\w.+-])prcockpit://pr/(${OWNER})/(${REPO})/(${NUMBER})(?![\\w-])` +
     `|https?://(?:www\\.)?github\\.com/(${OWNER})/(${REPO})/pull/(${NUMBER})(?![\\w-])`,

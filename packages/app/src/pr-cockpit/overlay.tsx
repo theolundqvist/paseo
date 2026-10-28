@@ -1,6 +1,6 @@
 export interface PrCockpitOverlayProps {
   serverId: string;
-  agentId: string | null;
+  agentId: string;
   isPointerSuspended: boolean;
 }
 
