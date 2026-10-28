@@ -620,7 +620,7 @@ export const ptBR: TranslationResources = {
       collapse: "Recolher pull requests vinculadas",
       expand: "Expandir pull requests vinculadas",
       hidden: "{{key}} ocultada da sobreposição desta conversa",
-      restored: "{{key}} restaurada na sobreposição desta conversa",
+      restored: "{{key}} restaurada",
       undo: "Desfazer",
     },
     tabs: {
