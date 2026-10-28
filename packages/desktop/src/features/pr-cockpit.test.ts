@@ -55,6 +55,12 @@ describe.skipIf(process.platform === "win32")("resolvePrCockpitOrigin", () => {
     );
   });
 
+  it("canonicalizes the default HTTP port for iframe message validation", async () => {
+    await expect(resolvePrCockpitOrigin(await environment("COCKPIT_PORT=80\n"))).resolves.toBe(
+      "http://127.0.0.1",
+    );
+  });
+
   it("does not guess another origin for an invalid configured port", async () => {
     await expect(
       resolvePrCockpitOrigin(await environment("COCKPIT_PORT=not-a-port\n")),

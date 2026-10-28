@@ -31,5 +31,5 @@ export async function resolvePrCockpitOrigin(
   if (!/^\d+$/.test(portText) || !Number.isInteger(port) || port < 1 || port > 65535) {
     throw new Error("PR Cockpit's COCKPIT_PORT must be a port between 1 and 65535.");
   }
-  return `http://127.0.0.1:${port}`;
+  return new URL(`http://127.0.0.1:${port}`).origin;
 }
