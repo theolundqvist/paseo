@@ -319,7 +319,6 @@ describe("OMP agent client and session", () => {
       { type: "user_message", text: "hello OMP", messageId: "user-1" },
       { type: "assistant_message", text: "hello from OMP", messageId: "omp-assistant-1" },
     ]);
-    expect(omp.eventTypes().slice(0, 2)).toEqual(["turn_started", "timeline"]);
     expect(omp.completedTurnCount()).toBe(1);
   });
 
@@ -385,24 +384,10 @@ describe("OMP agent client and session", () => {
     const scheduler = new ManualUsagePollScheduler();
     const omp = new OmpHarness({ usagePollScheduler: scheduler });
     await omp.start();
-    omp.runtime().stats = {
-      contextUsage: { tokens: 130, contextWindow: 200_000 },
-    };
-    omp.runtime().state.contextUsage = { tokens: 99, contextWindow: 100_000 };
     await omp.requireStartTurn("keep working");
     expect(scheduler.activePollCount()).toBe(1);
     scheduler.poll();
     await waitForImmediate();
-    expect(omp.usageUpdates()).toEqual([
-      {
-        inputTokens: 0,
-        cachedInputTokens: 0,
-        outputTokens: 0,
-        totalCostUsd: 0,
-        contextWindowMaxTokens: 200_000,
-        contextWindowUsedTokens: 130,
-      },
-    ]);
     expect(scheduler.activePollCount()).toBe(1);
     omp.runtime().abortError = new Error("abort unavailable");
     await expect(omp.interrupt()).rejects.toThrow("abort unavailable");

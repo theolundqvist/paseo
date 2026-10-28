@@ -213,17 +213,12 @@ class OmpCliRuntimeSession implements OmpRuntimeSession {
     } catch {
       // get_session_stats not supported by this binary — will try get_state below
     }
-    if (stats?.tokens == null && stats?.cost == null && stats?.contextUsage == null) {
+    if (stats?.contextUsage == null) {
+      // Aggregate token totals do not describe the current context window.
       try {
-        const state = OmpSessionStateSchema.parse(await this.request({ type: "get_state" }));
-        const ctx = state.contextUsage;
-        if (ctx) {
-          return {
-            contextUsage: {
-              tokens: typeof ctx.tokens === "number" ? ctx.tokens : undefined,
-              contextWindow: typeof ctx.contextWindow === "number" ? ctx.contextWindow : undefined,
-            },
-          };
+        const state = await this.getState();
+        if (state.contextUsage) {
+          return { ...stats, contextUsage: state.contextUsage };
         }
       } catch {
         // get_state also failed — nothing we can do
