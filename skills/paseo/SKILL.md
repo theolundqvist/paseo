@@ -69,6 +69,8 @@ Agent-scoped `create_agent` defaults `notifyOnFinish` to true. Set it to `false`
 
 **`archive_agent`** — `{ agentId }`. Interrupts if running, removes from active list.
 
+For terminal-to-Paseo handoff, finish the current turn, stop the terminal agent, then resume its original native session file through Paseo. Keep one execution owner: transcript copies and Collab are not ownership transfer. Verify the original process exited before import, and verify terminal-client capabilities separately before promising native TUI access to a daemon-owned agent.
+
 ## Agent profiles and provider discovery
 
 **`list_profiles`** — named launch bundles configured by the human. Before choosing how to launch a delegated agent, call this tool and read every profile's `notes`. Pick a named profile the user requested, or the profile whose notes best match the work.

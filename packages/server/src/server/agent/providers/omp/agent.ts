@@ -971,6 +971,7 @@ export class OmpAgentSession implements AgentSession {
 
   subscribe(callback: (event: AgentStreamEvent) => void): () => void {
     this.subscribers.add(callback);
+    void this.usagePoller.refresh();
     return () => {
       this.subscribers.delete(callback);
     };
@@ -1269,6 +1270,7 @@ export class OmpAgentSession implements AgentSession {
     const model = await this.runtimeSession.setModel(parsedReference.provider, parsedReference.id);
     this.config.model = `${model.provider}/${model.id}`;
     await this.refreshState();
+    await this.usagePoller.refresh();
   }
 
   async setThinkingOption(thinkingOptionId: string | null): Promise<void> {
@@ -1415,6 +1417,7 @@ export class OmpAgentSession implements AgentSession {
     this.outOfBandCompactionCompleted = false;
     try {
       await this.runtimeSession.compact(customInstructions);
+      await this.usagePoller.refresh();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       if (
@@ -1616,13 +1619,14 @@ export class OmpAgentSession implements AgentSession {
   private handleExtraRuntimeEvent(event: OmpRuntimeEvent): boolean {
     if (event.type === "model_changed") {
       void this.refreshState()
-        .then(() =>
+        .then(() => {
           this.emit({
             type: "model_changed",
             provider: this.provider,
             runtimeInfo: this.runtimeInfoFromState(),
-          }),
-        )
+          });
+          return this.usagePoller.refresh();
+        })
         .catch((error: unknown) =>
           this.logger.debug({ err: error }, "OMP state unavailable after model change"),
         );
@@ -1757,6 +1761,9 @@ export class OmpAgentSession implements AgentSession {
         }
       }
       return;
+    }
+    if (event.type === "auto_compaction_end") {
+      void this.usagePoller.refresh();
     }
     if (this.handleExtraRuntimeEvent(event)) {
       return;

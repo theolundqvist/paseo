@@ -36,6 +36,145 @@ function deferred<T>() {
 }
 
 describe("OMP usage poller", () => {
+  test("refreshes source context on attachment, compaction, and model changes while idle", async () => {
+    const scheduler = new ManualPollScheduler();
+    const updates: AgentUsage[] = [];
+    let stats: OmpSessionStats = {
+      contextUsage: { contextWindow: 400_000, tokens: 123_456 },
+    };
+    const poller = new OmpUsagePoller({
+      scheduler,
+      readStats: async () => stats,
+      onUsage: (usage) => updates.push(usage),
+      onPollError: (error) => {
+        throw error;
+      },
+    });
+
+    await poller.refresh();
+    await poller.refresh();
+    stats = { contextUsage: { contextWindow: 400_000, tokens: 32_100 } };
+    await poller.refresh();
+    stats = { contextUsage: { contextWindow: 1_000_000, tokens: 32_100 } };
+    await poller.refresh();
+
+    expect(updates).toStrictEqual([
+      { contextWindowMaxTokens: 400_000, contextWindowUsedTokens: 123_456 },
+      { contextWindowMaxTokens: 400_000, contextWindowUsedTokens: 32_100 },
+      { contextWindowMaxTokens: 1_000_000, contextWindowUsedTokens: 32_100 },
+    ]);
+    expect(scheduler.activePollCount()).toBe(0);
+  });
+
+  test("does not derive context from aggregate totals or invent missing counters", async () => {
+    const updates: AgentUsage[] = [];
+    let stats: OmpSessionStats = {
+      tokens: { input: 100, output: 20, total: 999 },
+      cost: 0,
+    };
+    const poller = new OmpUsagePoller({
+      readStats: async () => stats,
+      onUsage: (usage) => updates.push(usage),
+      onPollError: (error) => {
+        throw error;
+      },
+    });
+
+    await poller.refresh();
+    stats = { contextUsage: { tokens: null, contextWindow: null } };
+    await poller.refresh();
+    stats = { contextUsage: { tokens: 0, contextWindow: 200_000 } };
+    await poller.refresh();
+
+    expect(updates).toStrictEqual([
+      { inputTokens: 100, outputTokens: 20, totalCostUsd: 0 },
+      { contextWindowUsedTokens: 0, contextWindowMaxTokens: 200_000 },
+    ]);
+  });
+
+  test("idle refresh drops older in-flight usage and preserves active polling", async () => {
+    const scheduler = new ManualPollScheduler();
+    const pendingStats = deferred<OmpSessionStats>();
+    const updates: AgentUsage[] = [];
+    let reads = 0;
+    const poller = new OmpUsagePoller({
+      scheduler,
+      readStats: async () => {
+        reads += 1;
+        return reads === 1
+          ? pendingStats.promise
+          : { contextUsage: { contextWindow: 200_000, tokens: 50 } };
+      },
+      onUsage: (usage) => updates.push(usage),
+      onPollError: (error) => {
+        throw error;
+      },
+    });
+
+    poller.startTurn();
+    scheduler.poll();
+    await poller.refresh();
+    pendingStats.resolve({ contextUsage: { contextWindow: 200_000, tokens: 100 } });
+    await waitForImmediate();
+
+    expect(updates).toStrictEqual([
+      { contextWindowMaxTokens: 200_000, contextWindowUsedTokens: 50 },
+    ]);
+    expect(scheduler.activePollCount()).toBe(1);
+    poller.stopTurn();
+    expect(scheduler.activePollCount()).toBe(0);
+  });
+
+  test("only the latest idle refresh publishes", async () => {
+    const pendingStats = deferred<OmpSessionStats>();
+    const updates: AgentUsage[] = [];
+    let reads = 0;
+    const poller = new OmpUsagePoller({
+      readStats: async () => {
+        reads += 1;
+        return reads === 1
+          ? pendingStats.promise
+          : { contextUsage: { contextWindow: 1_000_000, tokens: 150 } };
+      },
+      onUsage: (usage) => updates.push(usage),
+      onPollError: (error) => {
+        throw error;
+      },
+    });
+
+    const staleRefresh = poller.refresh();
+    await poller.refresh();
+    pendingStats.resolve({ contextUsage: { contextWindow: 200_000, tokens: 100 } });
+    await staleRefresh;
+
+    expect(updates).toStrictEqual([
+      { contextWindowMaxTokens: 1_000_000, contextWindowUsedTokens: 150 },
+    ]);
+  });
+
+  test("reports refresh failures without publishing data or stopping active polling", async () => {
+    const scheduler = new ManualPollScheduler();
+    const error = new Error("source unavailable");
+    const errors: unknown[] = [];
+    const updates: AgentUsage[] = [];
+    const poller = new OmpUsagePoller({
+      scheduler,
+      readStats: async () => {
+        throw error;
+      },
+      onUsage: (usage) => updates.push(usage),
+      onPollError: (cause) => errors.push(cause),
+    });
+
+    poller.startTurn();
+    await poller.refresh();
+
+    expect(updates).toEqual([]);
+    expect(errors).toEqual([error]);
+    expect(scheduler.activePollCount()).toBe(1);
+    poller.close();
+  });
+
   test("emits only changed usage while active", async () => {
     const scheduler = new ManualPollScheduler();
     const updates: AgentUsage[] = [];
@@ -90,10 +229,6 @@ describe("OMP usage poller", () => {
     const inFlightStats = deferred<OmpSessionStats>();
     const finalStats = { contextUsage: { contextWindow: 200_000, tokens: 150 } };
     const finalUsage = {
-      inputTokens: 0,
-      cachedInputTokens: 0,
-      outputTokens: 0,
-      totalCostUsd: 0,
       contextWindowMaxTokens: 200_000,
       contextWindowUsedTokens: 150,
     };

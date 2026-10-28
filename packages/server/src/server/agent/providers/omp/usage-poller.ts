@@ -22,18 +22,18 @@ function createScheduler(): OmpUsagePollScheduler {
 }
 
 function toAgentUsage(stats: OmpSessionStats): AgentUsage | undefined {
-  const inputTokens = stats.tokens?.input ?? 0;
-  const cachedInputTokens = stats.tokens?.cacheRead ?? 0;
-  const outputTokens = stats.tokens?.output ?? 0;
-  const totalCostUsd = stats.cost ?? 0;
+  const inputTokens = stats.tokens?.input;
+  const cachedInputTokens = stats.tokens?.cacheRead;
+  const outputTokens = stats.tokens?.output;
+  const totalCostUsd = stats.cost;
   const contextWindowMaxTokens = stats.contextUsage?.contextWindow ?? undefined;
   const contextWindowUsedTokens = stats.contextUsage?.tokens ?? undefined;
 
   if (
-    inputTokens === 0 &&
-    cachedInputTokens === 0 &&
-    outputTokens === 0 &&
-    totalCostUsd === 0 &&
+    inputTokens === undefined &&
+    cachedInputTokens === undefined &&
+    outputTokens === undefined &&
+    totalCostUsd === undefined &&
     contextWindowMaxTokens === undefined &&
     contextWindowUsedTokens === undefined
   ) {
@@ -41,10 +41,10 @@ function toAgentUsage(stats: OmpSessionStats): AgentUsage | undefined {
   }
 
   return {
-    inputTokens,
-    cachedInputTokens,
-    outputTokens,
-    totalCostUsd,
+    ...(inputTokens === undefined ? {} : { inputTokens }),
+    ...(cachedInputTokens === undefined ? {} : { cachedInputTokens }),
+    ...(outputTokens === undefined ? {} : { outputTokens }),
+    ...(totalCostUsd === undefined ? {} : { totalCostUsd }),
     ...(typeof contextWindowMaxTokens === "number" ? { contextWindowMaxTokens } : {}),
     ...(typeof contextWindowUsedTokens === "number" ? { contextWindowUsedTokens } : {}),
   };
@@ -88,21 +88,31 @@ export class OmpUsagePoller {
   }
 
   async completeTurn(turnId?: string): Promise<void> {
+    this.active = false;
+    await this.refresh(turnId);
+  }
+
+  async refresh(turnId?: string): Promise<void> {
     if (this.closed) {
       return;
     }
-    this.active = false;
-    const completionGeneration = this.invalidatePendingWork();
+    const refreshGeneration = this.invalidatePendingWork();
     let usage: AgentUsage | undefined;
     try {
       usage = toAgentUsage(await this.options.readStats());
-    } catch {
+    } catch (error) {
+      if (!this.closed && this.generation === refreshGeneration) {
+        this.options.onPollError(error);
+      }
       return;
+    } finally {
+      if (this.active && !this.closed && this.generation === refreshGeneration) {
+        this.schedule(refreshGeneration);
+      }
     }
-    if (this.closed || this.generation !== completionGeneration) {
-      return;
+    if (!this.closed && this.generation === refreshGeneration) {
+      this.publishUsage(usage, turnId);
     }
-    this.publishUsage(usage, turnId);
   }
 
   close(): void {
