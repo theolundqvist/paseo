@@ -3,14 +3,14 @@ import { buildPrCockpitEmbedUrl, parsePrCockpitEmbedMessage } from "./embed";
 
 describe("buildPrCockpitEmbedUrl", () => {
   it("encodes each key and keeps the given order", () => {
-    expect(buildPrCockpitEmbedUrl(["acme/api#12", "acme/web#3"])).toBe(
-      "http://localhost:4820/#/embed?keys=acme%2Fapi%2312,acme%2Fweb%233",
+    expect(buildPrCockpitEmbedUrl("http://127.0.0.1:4825", ["acme/api#12", "acme/web#3"])).toBe(
+      "http://127.0.0.1:4825/#/embed?keys=acme%2Fapi%2312,acme%2Fweb%233",
     );
   });
 
   it("sends at most 100 keys", () => {
     const keys = Array.from({ length: 120 }, (_, index) => `acme/api#${index + 1}`);
-    const query = buildPrCockpitEmbedUrl(keys).split("keys=")[1] ?? "";
+    const query = buildPrCockpitEmbedUrl("http://127.0.0.1:4820", keys).split("keys=")[1] ?? "";
     expect(query.split(",")).toHaveLength(100);
   });
 });

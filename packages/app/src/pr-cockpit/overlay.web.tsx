@@ -1,4 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
+import { useFetchQuery } from "@/data/query";
 import { Text, View, type LayoutChangeEvent } from "react-native";
 import { ChevronDown, ChevronUp, GitPullRequest } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
@@ -7,9 +16,16 @@ import { ToolbarButton } from "@/components/ui/pane-content-toolbar";
 import type { Theme } from "@/styles/theme";
 import { inlineUnistylesStyle } from "@/styles/unistyles-inline-style";
 import { openExternalUrl } from "@/utils/open-external-url";
-import { PR_COCKPIT_ORIGIN, buildPrCockpitEmbedUrl, parsePrCockpitEmbedMessage } from "./embed";
+import { buildPrCockpitEmbedUrl, parsePrCockpitEmbedMessage } from "./embed";
 import type { PrCockpitOverlayProps } from "./overlay";
 import { useLinkedPullRequestKeys } from "./use-linked-pull-request-keys";
+import { usePrCockpitChatScroll, type ChatScrollState } from "./chat-scroll-state";
+import {
+  INITIAL_COLLAPSE_STATE,
+  isPrCockpitCollapsed,
+  togglePrCockpitCollapsed,
+} from "./collapse-state";
+import { resolvePrCockpitOrigin } from "./origin";
 
 const OVERLAY_WIDTH = 340;
 const OVERLAY_INSET = 8;
@@ -32,42 +48,78 @@ interface PaneSize {
 }
 
 interface SettledKeys {
-  agentId: string | null;
+  sessionKey: string;
   signature: string;
 }
 
 export function PrCockpitOverlay({ serverId, agentId, isPointerSuspended }: PrCockpitOverlayProps) {
   const keys = useLinkedPullRequestKeys({ serverId, agentId });
+  const scroll = usePrCockpitChatScroll(serverId, agentId);
   const signature = keys.join(",");
-  const [settled, setSettled] = useState<SettledKeys>({ agentId, signature });
+  const sessionKey = `${serverId}:${agentId}`;
+  const { data: origin } = useFetchQuery({
+    queryKey: ["prCockpitOrigin"],
+    queryFn: resolvePrCockpitOrigin,
+    dataShape: "value",
+    staleTimeMs: 60_000,
+    enabled: signature !== "",
+    retry: false,
+  });
+  const [settled, setSettled] = useState<SettledKeys>({ sessionKey, signature });
   useEffect(() => {
-    const timer = setTimeout(() => setSettled({ agentId, signature }), KEYS_SETTLE_MS);
+    const timer = setTimeout(() => setSettled({ sessionKey, signature }), KEYS_SETTLE_MS);
     return () => clearTimeout(timer);
-  }, [agentId, signature]);
+  }, [sessionKey, signature]);
 
-  const visibleSignature = settled.agentId === agentId ? settled.signature : signature;
-  if (signature === "" || visibleSignature === "") {
+  const visibleSignature = settled.sessionKey === sessionKey ? settled.signature : signature;
+  if (signature === "" || visibleSignature === "" || !origin) {
     return null;
   }
-  return <PrCockpitEmbed signature={visibleSignature} isPointerSuspended={isPointerSuspended} />;
+  return (
+    <PrCockpitEmbed
+      key={sessionKey}
+      origin={origin}
+      signature={visibleSignature}
+      scroll={scroll}
+      isPointerSuspended={isPointerSuspended}
+    />
+  );
 }
 
 function PrCockpitEmbed({
+  origin,
   signature,
   isPointerSuspended,
+  scroll,
 }: {
+  origin: string;
   signature: string;
   isPointerSuspended: boolean;
+  scroll: ChatScrollState;
 }) {
   const { t } = useTranslation();
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const keyCount = signature.split(",").length;
-  const embedUrl = useMemo(() => buildPrCockpitEmbedUrl(signature.split(",")), [signature]);
+  const embedUrl = useMemo(
+    () => buildPrCockpitEmbedUrl(origin, signature.split(",")),
+    [origin, signature],
+  );
   const [initialEmbedUrl] = useState(embedUrl);
   const appliedEmbedUrlRef = useRef(embedUrl);
   const [contentHeight, setContentHeight] = useState(0);
   const [paneSize, setPaneSize] = useState<PaneSize | null>(null);
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [collapseState, toggleCollapsedState] = useReducer(
+    togglePrCockpitCollapsed,
+    INITIAL_COLLAPSE_STATE,
+  );
+  const isCollapsed = isPrCockpitCollapsed(collapseState, scroll);
+
+  useEffect(() => {
+    const iframe = iframeRef.current;
+    if (isCollapsed && iframe && document.activeElement === iframe) {
+      iframe.blur();
+    }
+  }, [isCollapsed]);
 
   // Replacing the location keeps the change a same-document hash navigation: the embed keeps
   // its live connection and the app's back history gains no iframe entries.
@@ -84,9 +136,7 @@ function PrCockpitEmbed({
     function receiveMessage(event: MessageEvent) {
       const iframe = iframeRef.current;
       const isFromFrame =
-        event.origin === PR_COCKPIT_ORIGIN &&
-        iframe !== null &&
-        event.source === iframe.contentWindow;
+        event.origin === origin && iframe !== null && event.source === iframe.contentWindow;
       if (!isFromFrame) {
         return;
       }
@@ -107,7 +157,7 @@ function PrCockpitEmbed({
     }
     window.addEventListener("message", receiveMessage);
     return () => window.removeEventListener("message", receiveMessage);
-  }, []);
+  }, [origin]);
 
   const handleLayout = useCallback((event: LayoutChangeEvent) => {
     const { width, height } = event.nativeEvent.layout;
@@ -118,7 +168,7 @@ function PrCockpitEmbed({
       current?.width === width && current.height === height ? current : { width, height },
     );
   }, []);
-  const toggleCollapsed = useCallback(() => setIsCollapsed((current) => !current), []);
+  const toggleCollapsed = useCallback(() => toggleCollapsedState(scroll), [scroll]);
 
   const isReady = contentHeight > 0 && paneSize !== null;
   const isFrameVisible = isReady && !isCollapsed;

@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const PR_COCKPIT_ORIGIN = "http://localhost:4820";
+export const DEFAULT_PR_COCKPIT_ORIGIN = "http://127.0.0.1:4820";
 
 const MAX_EMBED_KEYS = 100;
 
@@ -19,9 +19,9 @@ const PrCockpitEmbedMessageSchema = z.discriminatedUnion("type", [
 
 export type PrCockpitEmbedMessage = z.infer<typeof PrCockpitEmbedMessageSchema>;
 
-export function buildPrCockpitEmbedUrl(keys: readonly string[]): string {
+export function buildPrCockpitEmbedUrl(origin: string, keys: readonly string[]): string {
   const encodedKeys = keys.slice(0, MAX_EMBED_KEYS).map(encodeURIComponent).join(",");
-  return `${PR_COCKPIT_ORIGIN}/#/embed?keys=${encodedKeys}`;
+  return `${origin}/#/embed?keys=${encodedKeys}`;
 }
 
 export function parsePrCockpitEmbedMessage(value: unknown): PrCockpitEmbedMessage | null {

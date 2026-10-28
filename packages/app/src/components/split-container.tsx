@@ -92,6 +92,7 @@ import { RenderProfile } from "@/utils/render-profiler";
 import { isNative } from "@/constants/platform";
 import { panelTargetSupportsHost } from "@/plugins/workspace-panels/locations";
 import { PrCockpitOverlay } from "@/pr-cockpit/overlay";
+import { PrCockpitScrollProvider } from "@/pr-cockpit/chat-scroll-state";
 
 interface SplitContainerProps {
   layout: WorkspaceLayout;
@@ -1343,25 +1344,27 @@ function SplitPaneView({
           />
         </WindowChromeSafeArea>
 
-        <View style={styles.paneContent}>
-          <WorkspacePanelHost
-            paneId={pane.id}
-            tabs={paneTabs}
-            activeTabId={activeTabDescriptor?.tabId ?? null}
-            normalizedServerId={normalizedServerId}
-            normalizedWorkspaceId={normalizedWorkspaceId}
-            isWorkspaceFocused={isWorkspaceFocused}
-            isPaneFocused={isFocused}
-            onFocusPane={stableOnFocusPane}
-            buildPaneContentModel={buildPaneContentModel}
-          />
-          <PrCockpitOverlay
-            serverId={normalizedServerId}
-            agentId={activeAgentId}
-            isPointerSuspended={activeDragTabId !== null}
-          />
-          <SplitDropZone paneId={pane.id} active={showDropZones} preview={dropPreview} />
-        </View>
+        <PrCockpitScrollProvider>
+          <View style={styles.paneContent}>
+            <WorkspacePanelHost
+              paneId={pane.id}
+              tabs={paneTabs}
+              activeTabId={activeTabDescriptor?.tabId ?? null}
+              normalizedServerId={normalizedServerId}
+              normalizedWorkspaceId={normalizedWorkspaceId}
+              isWorkspaceFocused={isWorkspaceFocused}
+              isPaneFocused={isFocused}
+              onFocusPane={stableOnFocusPane}
+              buildPaneContentModel={buildPaneContentModel}
+            />
+            <PrCockpitOverlay
+              serverId={normalizedServerId}
+              agentId={activeAgentId}
+              isPointerSuspended={activeDragTabId !== null}
+            />
+            <SplitDropZone paneId={pane.id} active={showDropZones} preview={dropPreview} />
+          </View>
+        </PrCockpitScrollProvider>
       </View>
     </RenderProfile>
   );
