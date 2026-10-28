@@ -200,6 +200,52 @@ describe("OMP CLI runtime", () => {
     await expect(session.getState()).resolves.toMatchObject({ sessionId: "session-1" });
   });
 
+  test("keeps aggregate stats when context usage is supplied by session state", async () => {
+    const child = createOmpChild();
+    const commands: unknown[] = [];
+    const stats = {
+      tokens: { input: 12_000, output: 800, cacheRead: 3_000 },
+      cost: 0.25,
+    };
+    const contextUsage = { tokens: 4_500, contextWindow: 200_000, percent: 2.25 };
+    replyToCommands(child, (command) => {
+      commands.push(command.type);
+      if (command.type === "get_session_stats") return stats;
+      return {
+        isStreaming: false,
+        isCompacting: false,
+        sessionId: "session-1",
+        messageCount: 3,
+        queuedMessageCount: 0,
+        contextUsage,
+      };
+    });
+    const session = await createRuntime(child).startSession({ cwd: "/workspace/project" });
+
+    await expect(session.getSessionStats()).resolves.toStrictEqual({ ...stats, contextUsage });
+    expect(commands).toEqual(["get_session_stats", "get_state"]);
+    await session.close();
+  });
+
+  test("uses context from session stats without deriving it from totals or reading state", async () => {
+    const child = createOmpChild();
+    const commands: unknown[] = [];
+    const stats = {
+      tokens: { input: 12_000, output: 800, total: 12_800 },
+      cost: 0.25,
+      contextUsage: { tokens: 4_500, contextWindow: 200_000 },
+    };
+    replyToCommands(child, (command) => {
+      commands.push(command.type);
+      return stats;
+    });
+    const session = await createRuntime(child).startSession({ cwd: "/workspace/project" });
+
+    await expect(session.getSessionStats()).resolves.toStrictEqual(stats);
+    expect(commands).toEqual(["get_session_stats"]);
+    await session.close();
+  });
+
   test("rejects malformed RPC results instead of trusting transport data", async () => {
     const child = createOmpChild();
     replyToCommands(child, () => ({
