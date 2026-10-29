@@ -126,6 +126,7 @@ export const ptBR: TranslationResources = {
       terminalAccessibilityLabel: "Terminal prompt",
       focusHint: "{{shortcut}} para focar",
       addAttachment: "Adicionar anexo",
+      moreActions: "Anexar, ditar ou iniciar voz",
       interruptAgent: "Interromper agente",
       queueMessage: "Enfileirar mensagem",
       sendAndInterrupt: "Enviar e interromper",
@@ -2026,6 +2027,7 @@ export const ptBR: TranslationResources = {
       other: "chamou o Paseo {{count}} vezes",
     },
     and: "e",
+    needsAttention: "Ferramentas com falha ou canceladas",
   },
   renameModal: {
     rename: "Renomear",
@@ -2289,6 +2291,11 @@ export const ptBR: TranslationResources = {
       chatOutline: {
         title: "Estrutura do chat",
         description: "Mostrar uma estrutura para navegar entre prompts",
+      },
+      compactChatLayout: {
+        title: "Chat compacto",
+        description:
+          "Usar toda a largura do painel com mensagens mais densas e um campo de texto mais fino",
       },
       sidebar: {
         header: {

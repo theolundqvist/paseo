@@ -126,6 +126,7 @@ export const es: TranslationResources = {
       terminalAccessibilityLabel: "Terminal prompt",
       focusHint: "{{shortcut}}para enfocar",
       addAttachment: "Agregar archivo adjunto",
+      moreActions: "Adjuntar, dictar o iniciar voz",
       interruptAgent: "agente de interrupción",
       queueMessage: "mensaje de cola",
       sendAndInterrupt: "Enviar e interrumpir",
@@ -2041,6 +2042,7 @@ export const es: TranslationResources = {
       other: "llamó a Paseo {{count}} veces",
     },
     and: "y",
+    needsAttention: "Herramientas fallidas o canceladas",
   },
   renameModal: {
     rename: "Rebautizar",
@@ -2306,6 +2308,10 @@ export const es: TranslationResources = {
       chatOutline: {
         title: "Esquema del chat",
         description: "Muestra un esquema para saltar entre instrucciones",
+      },
+      compactChatLayout: {
+        title: "Chat compacto",
+        description: "Usa todo el ancho del panel con mensajes más densos y un editor más delgado",
       },
       sidebar: {
         header: {

@@ -12,6 +12,7 @@ import {
 import { StatusRing } from "@/components/status-ring";
 import { STATUS_RING_HALO_INSET } from "@/components/status-ring/geometry";
 import { isWeb } from "@/constants/platform";
+import { useCompactChatLayout } from "@/hooks/use-compact-chat-layout";
 import { getStatusDotColor } from "@/utils/status-dot-color";
 import { STATUS_INDICATOR_FILLED_DOT_SIZE } from "@/utils/status-indicator-geometry";
 import type { SidebarStateBucket } from "@/utils/sidebar-agent-state";
@@ -30,9 +31,10 @@ import { COMPOSER_PILL_CLEARANCE, composerPillStyles } from "./pill-styles";
  * the final footer clear without turning the overlay into a layout band.
  */
 export function ComposerTrackBar({ children }: { children: ReactNode }): ReactElement {
+  const dense = useCompactChatLayout();
   return (
-    <View style={styles.bar} pointerEvents="box-none">
-      <View style={styles.track} pointerEvents="box-none">
+    <View style={[styles.bar, dense && styles.barDense]} pointerEvents="box-none">
+      <View style={[styles.track, dense && styles.trackDense]} pointerEvents="box-none">
         {children}
       </View>
     </View>
@@ -325,12 +327,19 @@ const styles = StyleSheet.create((theme) => {
         md: COMPOSER_PILL_CLEARANCE.wide,
       },
     },
+    // Aligns with the dense composer's full-width inset.
+    barDense: {
+      paddingHorizontal: theme.spacing[2],
+    },
     track: {
       width: "100%",
       maxWidth: theme.contentMaxWidth,
       flexDirection: "row",
       alignItems: "center",
       gap: theme.spacing[1],
+    },
+    trackDense: {
+      maxWidth: "100%",
     },
     // The rail every panel row sits on: inset from the panel edge so the fill is a rounded block
     // inside it, and tall enough that revealing an action button cannot resize the row.

@@ -125,6 +125,7 @@ export const zhCN: TranslationResources = {
       terminalAccessibilityLabel: "Terminal prompt",
       focusHint: "{{shortcut}} 聚焦",
       addAttachment: "添加附件",
+      moreActions: "附加、听写或开始语音",
       interruptAgent: "中断 Agent",
       queueMessage: "消息排队",
       sendAndInterrupt: "发送并中断",
@@ -1971,6 +1972,7 @@ export const zhCN: TranslationResources = {
       other: "调用了 Paseo {{count}} 次",
     },
     and: "并",
+    needsAttention: "失败或已取消的工具",
   },
   renameModal: {
     rename: "重命名",
@@ -2229,6 +2231,10 @@ export const zhCN: TranslationResources = {
       chatOutline: {
         title: "聊天大纲",
         description: "显示用于在提示词之间跳转的大纲",
+      },
+      compactChatLayout: {
+        title: "紧凑聊天",
+        description: "使用整个窗格宽度，消息更紧凑，输入框更窄",
       },
       sidebar: {
         header: {

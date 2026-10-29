@@ -51,14 +51,18 @@ function project(input: {
   head?: StreamItem[];
   isTurnActive?: boolean;
   preparedHistory?: PreparedToolCallHistory | null;
+  compact?: boolean;
 }) {
   const tail = input.tail ?? [];
   return projectToolCallDetailLevel({
     level: input.level,
     tail,
     head: input.head ?? [],
-    preparedHistory: input.preparedHistory ?? prepareToolCallHistory(input.level, tail),
+    preparedHistory:
+      input.preparedHistory ??
+      prepareToolCallHistory(input.level, tail, { compact: input.compact }),
     isTurnActive: input.isTurnActive ?? false,
+    compact: input.compact,
   });
 }
 
@@ -478,5 +482,102 @@ describe("tool call detail-level projection", () => {
     expect(result.head).toEqual([singleCall, plan, speak]);
     expect(result.groupsByHostId.get(singleCall.id)?.run.calls).toEqual([singleCall]);
     expect(result.groupsByHostId.size).toBe(1);
+  });
+
+  it.each(["detailed", "overview"] as const)(
+    "groups compact tools even when the saved detail preference is %s",
+    (level) => {
+      const calls = [
+        toolCall("1", { type: "shell", command: "one" }),
+        toolCall("2", { type: "read", filePath: "/repo/a.ts" }),
+      ];
+      const result = project({ level, compact: true, tail: calls });
+
+      expect(result.tail).toHaveLength(1);
+      expect(result.groupsByHostId.get("1")?.run).toMatchObject({
+        calls,
+        isSealed: false,
+      });
+    },
+  );
+
+  it("keeps the latest compact run open through completion and idle until prose arrives", () => {
+    const running = toolCall("1", { type: "shell", command: "one" }, { status: "running" });
+    const completed = toolCall("1", { type: "shell", command: "one" });
+    const active = project({
+      level: "detailed",
+      compact: true,
+      tail: [running],
+      isTurnActive: true,
+    });
+    const idle = project({ level: "detailed", compact: true, tail: [completed] });
+    const blank = project({
+      level: "detailed",
+      compact: true,
+      tail: [completed],
+      head: [{ ...assistant("answer"), text: " \n" }],
+    });
+    const answered = project({
+      level: "detailed",
+      compact: true,
+      tail: [completed],
+      head: [assistant("answer")],
+      isTurnActive: true,
+    });
+
+    expect(active.groupsByHostId.get("1")?.run.isSealed).toBe(false);
+    expect(idle.groupsByHostId.get("1")?.run.isSealed).toBe(false);
+    expect(idle.groupsByHostId.get("1")?.isLoading).toBe(false);
+    expect(blank.groupsByHostId.get("1")?.run.isSealed).toBe(false);
+    expect(blank.head).toEqual([]);
+    expect(answered.groupsByHostId.get("1")?.run.isSealed).toBe(true);
+  });
+
+  it("seals compact runs at user and assistant prose without merging across either", () => {
+    const first = toolCall("1", { type: "shell", command: "one" });
+    const second = toolCall("2", { type: "shell", command: "two" });
+    const third = toolCall("3", { type: "shell", command: "three" });
+    const user: StreamItem = {
+      kind: "user_message",
+      id: "question",
+      text: "Continue",
+      timestamp: new Date(2),
+    };
+    const result = project({
+      level: "detailed",
+      compact: true,
+      tail: [first, assistant("answer"), second, user],
+      head: [third],
+    });
+
+    expect(result.groupsByHostId.get("1")?.run.isSealed).toBe(true);
+    expect(result.groupsByHostId.get("2")?.run.isSealed).toBe(true);
+    expect(result.groupsByHostId.get("3")?.run.isSealed).toBe(false);
+    expect(result.groupsByHostId.size).toBe(3);
+  });
+
+  it("retains interleaved reasoning in one compact run across history and live head", () => {
+    const first = toolCall("1", { type: "shell", command: "one" });
+    const second = toolCall("2", { type: "shell", command: "two" }, { status: "failed" });
+    const thought: StreamItem = {
+      kind: "thought",
+      id: "reasoning",
+      text: "Considering the result",
+      status: "ready",
+      timestamp: new Date(2),
+    };
+    const tail = [first, thought];
+    const compact = project({ level: "overview", compact: true, tail, head: [second] });
+    const regular = project({ level: "overview", tail, head: [second] });
+
+    expect(compact.tail).toHaveLength(1);
+    expect(compact.head).toEqual([]);
+    expect(compact.groupsByHostId.get("1")?.run).toMatchObject({
+      calls: [first, second],
+      items: [first, thought, second],
+      isSealed: false,
+    });
+    expect(regular.tail).toEqual(tail);
+    expect(regular.groupsByHostId.size).toBe(2);
   });
 });

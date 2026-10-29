@@ -127,6 +127,7 @@ export const fr: TranslationResources = {
       terminalAccessibilityLabel: "Prompt du terminal",
       focusHint: "{{shortcut}} pour saisir",
       addAttachment: "Ajouter une pièce jointe",
+      moreActions: "Joindre, dicter ou démarrer la voix",
       interruptAgent: "Interrompre l’agent",
       queueMessage: "Mettre le message en file d’attente",
       sendAndInterrupt: "Envoyer et interrompre",
@@ -2038,6 +2039,7 @@ export const fr: TranslationResources = {
       other: "{{count}} appels à Paseo",
     },
     and: "et",
+    needsAttention: "Outils en échec ou annulés",
   },
   renameModal: {
     rename: "Renommer",
@@ -2303,6 +2305,11 @@ export const fr: TranslationResources = {
       chatOutline: {
         title: "Plan de la discussion",
         description: "Afficher un plan pour naviguer entre les prompts",
+      },
+      compactChatLayout: {
+        title: "Discussion compacte",
+        description:
+          "Utiliser toute la largeur du panneau avec des messages plus denses et un champ de saisie plus fin",
       },
       sidebar: {
         header: {

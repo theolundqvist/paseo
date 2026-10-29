@@ -85,6 +85,7 @@ import { useWorkspaceLayoutStore } from "@/stores/workspace-layout-store";
 import { buildWorkspaceTabPersistenceKey } from "@/workspace-tabs/model";
 import { openWorkspaceChanges } from "@/workspace-tabs/open-supporting-view";
 import { useSettings } from "@/hooks/use-settings";
+import { useCompactChatLayout } from "@/hooks/use-compact-chat-layout";
 import type { Theme } from "@/styles/theme";
 import type { PendingPermission } from "@/types/shared";
 import type { StreamItem, TodoEntry } from "@/types/stream";
@@ -1347,9 +1348,12 @@ function TimelineSyncErrorCallout({
   onRetry: () => void;
 }) {
   const { t } = useTranslation();
+  const dense = useCompactChatLayout();
   return (
-    <View style={styles.timelineSyncCalloutRail}>
-      <View style={styles.timelineSyncCalloutContent}>
+    <View style={[styles.timelineSyncCalloutRail, dense && styles.timelineSyncCalloutRailDense]}>
+      <View
+        style={[styles.timelineSyncCalloutContent, dense && styles.timelineSyncCalloutContentDense]}
+      >
         <View style={styles.timelineSyncCallout} testID="agent-timeline-sync-error">
           <Text style={styles.timelineSyncCalloutText}>
             {t("agentPanel.states.timelineSyncFailed")}
@@ -1546,6 +1550,7 @@ function ActiveAgentComposer({
   onMessageSent: () => void;
 }) {
   const isCompactFormFactor = useIsCompactFormFactor();
+  const dense = useCompactChatLayout();
   const { onLayout: onInputAreaLayout, isBelow: isCompactComposerLayout } = useContainerWidthBelow(
     COMPACT_FORM_FACTOR_WIDTH,
     { initialIsBelow: isCompactFormFactor },
@@ -1645,6 +1650,7 @@ function ActiveAgentComposer({
         onMessageSent={onMessageSent}
         onClientSlashCommand={handleClientSlashCommand}
         isCompactLayout={isCompactComposerLayout}
+        dense={dense}
       />
     </View>
   );
@@ -1751,9 +1757,15 @@ const styles = StyleSheet.create((theme) => ({
     paddingHorizontal: theme.spacing[4],
     paddingTop: theme.spacing[2],
   },
+  timelineSyncCalloutRailDense: {
+    paddingHorizontal: theme.spacing[2],
+  },
   timelineSyncCalloutContent: {
     width: "100%",
     maxWidth: theme.contentMaxWidth,
+  },
+  timelineSyncCalloutContentDense: {
+    maxWidth: "100%",
   },
   timelineSyncCallout: {
     flexDirection: "row",

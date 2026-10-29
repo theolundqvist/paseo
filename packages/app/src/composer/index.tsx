@@ -954,6 +954,8 @@ interface ComposerProps {
   inputWrapperStyle?: import("react-native").ViewStyle;
   /** Optional panel/container layout breakpoint. Defaults to the screen breakpoint. */
   isCompactLayout?: boolean;
+  /** Terminal-dense chat: full pane width, tight insets, slim input. Resolve with `useCompactChatLayout`. */
+  dense?: boolean;
   /**
    * What this composer is for. Terminal drops the chat-agent affordances and
    * uses the terminal font; see `@/composer/input-mode`. Callers set the mode
@@ -1230,6 +1232,7 @@ function ComposerContentImpl({
   agentControls,
   inputWrapperStyle,
   isCompactLayout: isCompactLayoutOverride,
+  dense = false,
   inputMode = "chat",
   readOnly = false,
   submitLabel,
@@ -1990,26 +1993,30 @@ function ComposerContentImpl({
     ],
   );
 
+  // Dense mode moves Voice mode into the overflow menu; the row keeps only text, model, meter,
+  // menu, and the primary action.
   const rightContent = useMemo(
-    () => (
-      <ComposerRightControlsSlot
-        isVoiceModeForAgent={isVoiceModeForAgent}
-        hasAgent={hasAgent}
-        isAgentRunning={isAgentRunning}
-        hasSendableContent={hasSendableContent}
-        isCompact={isCompactLayout}
-        showVoice={mode.showVoice}
-        buttonIconSize={buttonIconSize}
-        handleToggleRealtimeVoice={handleToggleRealtimeVoice}
-        isConnected={isConnected}
-        isVoiceSwitching={isVoiceSwitching}
-        realtimeVoiceButtonStyle={realtimeVoiceButtonStyle}
-        voiceToggleKeys={voiceToggleKeys}
-        t={t}
-      />
-    ),
+    () =>
+      dense ? null : (
+        <ComposerRightControlsSlot
+          isVoiceModeForAgent={isVoiceModeForAgent}
+          hasAgent={hasAgent}
+          isAgentRunning={isAgentRunning}
+          hasSendableContent={hasSendableContent}
+          isCompact={isCompactLayout}
+          showVoice={mode.showVoice}
+          buttonIconSize={buttonIconSize}
+          handleToggleRealtimeVoice={handleToggleRealtimeVoice}
+          isConnected={isConnected}
+          isVoiceSwitching={isVoiceSwitching}
+          realtimeVoiceButtonStyle={realtimeVoiceButtonStyle}
+          voiceToggleKeys={voiceToggleKeys}
+          t={t}
+        />
+      ),
     [
       buttonIconSize,
+      dense,
       handleToggleRealtimeVoice,
       hasAgent,
       hasSendableContent,
@@ -2024,6 +2031,29 @@ function ComposerContentImpl({
       voiceToggleKeys,
     ],
   );
+  const overflowMenuItems = useMemo<AttachmentMenuItem[] | undefined>(() => {
+    const showVoiceMode =
+      dense && mode.showVoice && hasAgent && !isVoiceModeForAgent && !isAgentRunning;
+    if (!showVoiceMode) return undefined;
+    return [
+      {
+        id: "voice-mode",
+        label: t("composer.voice.enableVoiceMode"),
+        icon: <ThemedAudioLines size={ICON_SIZE.md} uniProps={iconForegroundMutedMapping} />,
+        disabled: voiceButtonDisabled,
+        onSelect: handleToggleRealtimeVoice,
+      },
+    ];
+  }, [
+    dense,
+    handleToggleRealtimeVoice,
+    hasAgent,
+    isAgentRunning,
+    isVoiceModeForAgent,
+    mode.showVoice,
+    t,
+    voiceButtonDisabled,
+  ]);
 
   const contextWindowMeterGlyphSize = isCompactLayout ? ICON_SIZE.md : buttonIconSize;
   const beforeVoiceContent = useMemo(
@@ -2174,10 +2204,11 @@ function ComposerContentImpl({
         agentId,
         serverId,
         focusInput,
-        isCompactLayout,
+        // Dense collapses model, thinking, mode, and features into the one sheet-backed chip.
+        isCompactLayout: isCompactLayout || dense,
         showAgentControls: mode.showAgentControls,
       }),
-    [agentControls, agentId, focusInput, isCompactLayout, mode.showAgentControls, serverId],
+    [agentControls, agentId, dense, focusInput, isCompactLayout, mode.showAgentControls, serverId],
   );
 
   const handleAttachButtonRef = useCallback((node: View | null) => {
@@ -2246,8 +2277,12 @@ function ComposerContentImpl({
   );
 
   const inputAreaContainerStyle = useMemo(
-    () => [styles.inputAreaContainer, isComposerLocked && styles.inputAreaLocked],
-    [isComposerLocked],
+    () => [
+      styles.inputAreaContainer,
+      dense && styles.inputAreaContainerDense,
+      isComposerLocked && styles.inputAreaLocked,
+    ],
+    [dense, isComposerLocked],
   );
 
   const attachmentTray = useMemo(
@@ -2362,11 +2397,14 @@ function ComposerContentImpl({
         <AttachmentLightbox source={lightboxSource} onClose={handleLightboxClose} />
         {/* Input area */}
         <View style={inputAreaContainerStyle}>
-          <View style={styles.inputAreaContent}>
+          <View style={[styles.inputAreaContent, dense && styles.inputAreaContentDense]}>
             {queueList}
             {sendErrorNode}
 
-            <View ref={messageInputContainerRef} style={styles.messageInputContainer}>
+            <View
+              ref={messageInputContainerRef}
+              style={[styles.messageInputContainer, dense && styles.messageInputContainerDense]}
+            >
               <ComposerAutocompleteBinding
                 text={textSource}
                 cursor={cursor}
@@ -2430,6 +2468,8 @@ function ComposerContentImpl({
                   readOnly={readOnly}
                   textReplacement={textReplacement}
                   submitLabel={submitLabel}
+                  dense={dense}
+                  overflowMenuItems={overflowMenuItems}
                 />
               </RenderProfile>
               <Combobox
@@ -2486,6 +2526,12 @@ const styles = StyleSheet.create((theme: Theme) => ({
     paddingHorizontal: theme.spacing[4],
     paddingBottom: theme.spacing[4],
   },
+  // Edge-to-edge with the dense stream rows; no FOOTER_HEIGHT floor, the input sets its own.
+  inputAreaContainerDense: {
+    minHeight: 0,
+    paddingHorizontal: theme.spacing[2],
+    paddingBottom: theme.spacing[2],
+  },
   inputAreaLocked: {
     opacity: 0.6,
   },
@@ -2495,11 +2541,18 @@ const styles = StyleSheet.create((theme: Theme) => ({
     maxWidth: theme.contentMaxWidth,
     gap: theme.spacing[3],
   },
+  inputAreaContentDense: {
+    maxWidth: "100%",
+    gap: theme.spacing[1.5],
+  },
   messageInputContainer: {
     flexShrink: 1,
     position: "relative",
     width: "100%",
     gap: theme.spacing[3],
+  },
+  messageInputContainerDense: {
+    gap: theme.spacing[1.5],
   },
   cancelButton: {
     width: 28,

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Added an opt-in Compact chat setting for web and desktop: agent chat fills the pane width, messages and tool calls sit closer together, earlier tool runs collapse into expandable groups, and the composer starts one line tall.
 - Matched macOS workspace, tab, split, terminal, and tool shortcuts to the Alacritty/tmux setup, including ⌘K for workspace search and ⌘⇧←/→ for tab navigation. Git shortcuts use the focused pane's checkout; browser panes keep ⌘L for their address bar.
 - Added compact links at each pane's top right for PR Cockpit URLs found in terminal output and loaded agent history. Clicking a link or pressing ⌘P opens the installed PR Cockpit app.
 - Fixed workspace terminal subscriptions dropping panes launched in another directory.

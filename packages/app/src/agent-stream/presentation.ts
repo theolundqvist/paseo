@@ -8,6 +8,7 @@ import {
   type PreparedToolCallHistory,
   type ToolCallDetailLevel,
 } from "@/tool-calls/detail-level/projection";
+import { createToolCallRunIdResolver } from "@/tool-calls/detail-level/grouping";
 
 interface PresentationInput {
   tail: StreamItem[];
@@ -15,6 +16,7 @@ interface PresentationInput {
   transform: TimelineItemTransform | undefined;
   level: ToolCallDetailLevel;
   isTurnActive: boolean;
+  compact?: boolean;
 }
 
 function retainItems(previous: StreamItem[], next: StreamItem[]): StreamItem[] {
@@ -77,6 +79,8 @@ export function createStreamPresentation() {
   let promotedRows: StreamItem[] = [];
   let preparedTail: StreamItem[] | undefined;
   let preparedLevel: ToolCallDetailLevel | undefined;
+  let preparedCompact: boolean | undefined;
+  const resolveRunId = createToolCallRunIdResolver();
   let preparedHistory: PreparedToolCallHistory | null = null;
 
   /**
@@ -168,10 +172,18 @@ export function createStreamPresentation() {
       displayHistory = historyRows;
       promotedRows = nextPromoted;
     }
-    if (preparedTail !== displayTail || preparedLevel !== input.level) {
-      preparedHistory = prepareToolCallHistory(input.level, displayTail);
+    if (
+      preparedTail !== displayTail ||
+      preparedLevel !== input.level ||
+      preparedCompact !== input.compact
+    ) {
+      preparedHistory = prepareToolCallHistory(input.level, displayTail, {
+        compact: input.compact,
+        resolveRunId: input.compact ? resolveRunId : undefined,
+      });
       preparedTail = displayTail;
       preparedLevel = input.level;
+      preparedCompact = input.compact;
     }
     return projectToolCallDetailLevel({
       level: input.level,
@@ -179,6 +191,7 @@ export function createStreamPresentation() {
       head,
       preparedHistory,
       isTurnActive: input.isTurnActive,
+      compact: input.compact,
     });
   };
 }

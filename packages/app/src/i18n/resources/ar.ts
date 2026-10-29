@@ -125,6 +125,7 @@ export const ar: TranslationResources = {
       terminalAccessibilityLabel: "Terminal prompt",
       focusHint: "{{shortcut}}للتركيز",
       addAttachment: "إضافة مرفق",
+      moreActions: "إرفاق أو إملاء أو بدء الصوت",
       interruptAgent: "عامل المقاطعة",
       queueMessage: "رسالة قائمة الانتظار",
       sendAndInterrupt: "إرسال ومقاطعة",
@@ -1993,6 +1994,7 @@ export const ar: TranslationResources = {
       other: "استدعى Paseo {{count}} مرات",
     },
     and: "و",
+    needsAttention: "أدوات فشلت أو أُلغيت",
   },
   renameModal: {
     rename: "إعادة تسمية",
@@ -2254,6 +2256,10 @@ export const ar: TranslationResources = {
       chatOutline: {
         title: "مخطط المحادثة",
         description: "عرض مخطط للتنقل بين المطالبات",
+      },
+      compactChatLayout: {
+        title: "محادثة مضغوطة",
+        description: "استخدام كامل عرض اللوحة مع رسائل أكثر كثافة ومحرر أنحف",
       },
       sidebar: {
         header: {

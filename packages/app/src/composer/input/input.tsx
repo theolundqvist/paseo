@@ -20,6 +20,7 @@ import {
 } from "react";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { ICON_SIZE, type Theme } from "@/styles/theme";
 import { ArrowUp, Mic, MicOff, CornerDownLeft, Plus, Square } from "lucide-react-native";
 import { useDictation } from "@/hooks/use-dictation";
@@ -43,6 +44,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useShortcutKeys } from "@/hooks/use-shortcut-keys";
@@ -52,7 +54,7 @@ import { getShortcutOs } from "@/utils/shortcut-platform";
 import type { MessageInputKeyboardActionKind } from "@/keyboard/actions";
 import { isImeComposingKeyboardEvent } from "@/utils/keyboard-ime";
 import { isWeb } from "@/constants/platform";
-import { useIsCompactFormFactor } from "@/constants/layout";
+import { FOOTER_HEIGHT, useIsCompactFormFactor } from "@/constants/layout";
 import { useComposerKeyboardScope } from "@/composer/keyboard-scope";
 import { RenderProfile } from "@/utils/render-profiler";
 import { useComposerHeight } from "./height";
@@ -173,6 +175,14 @@ export interface MessageInputProps {
   textReplacement: TextReplacement;
   /** Replaces the submit icon with this label, still inside the composer's own toolbar row. */
   submitLabel?: string;
+  /**
+   * Terminal-dense surface: one flat row of text, model chip, context meter, an overflow menu
+   * (attachments, dictation, `overflowMenuItems`) and the primary action. Callers resolve it via
+   * `useCompactChatLayout`.
+   */
+  dense?: boolean;
+  /** Dense only: actions that move from the toolbar into the overflow menu, e.g. Voice mode. */
+  overflowMenuItems?: AttachmentMenuItem[];
 }
 
 export interface MessageInputRef {
@@ -194,6 +204,11 @@ const MIN_INPUT_HEIGHT_DESKTOP = 46;
 const DEFAULT_MAX_INPUT_HEIGHT = 160;
 const MAX_INPUT_VIEWPORT_RATIO = 0.5;
 const MIN_INPUT_HEIGHT = isWeb ? MIN_INPUT_HEIGHT_DESKTOP : MIN_INPUT_HEIGHT_MOBILE;
+// One line of content text (15px × 1.4 line height); longer drafts grow through measurement.
+const MIN_INPUT_HEIGHT_DENSE = 22;
+/** Height of the attach, send, and voice buttons; the dense row is exactly this tall when idle. */
+const DENSE_CONTROL_SIZE = 28;
+const EMPTY_MENU_ITEMS: AttachmentMenuItem[] = [];
 type WebTextInputKeyPressEvent = NativeSyntheticEvent<
   TextInputKeyPressEventData & {
     metaKey?: boolean;
@@ -260,7 +275,9 @@ function AttachmentDropdown({
   attachButtonStyle,
   renderAttachButtonIcon,
   attachmentMenuItems,
+  actionMenuItems = EMPTY_MENU_ITEMS,
   addAttachmentLabel,
+  testID = "message-input-attach-button",
 }: {
   visible: boolean;
   isConnected: boolean;
@@ -268,7 +285,10 @@ function AttachmentDropdown({
   attachButtonStyle: React.ComponentProps<typeof DropdownMenuTrigger>["style"];
   renderAttachButtonIcon: (input: { hovered?: boolean }) => React.ReactElement;
   attachmentMenuItems: AttachmentMenuItem[];
+  /** Non-attachment actions listed after a separator (dense overflow menu). */
+  actionMenuItems?: AttachmentMenuItem[];
   addAttachmentLabel: string;
+  testID?: string;
 }) {
   const isButtonDisabled = !isConnected || disabled;
   if (!visible) return null;
@@ -280,7 +300,7 @@ function AttachmentDropdown({
             disabled={isButtonDisabled}
             accessibilityLabel={addAttachmentLabel}
             accessibilityRole="button"
-            testID="message-input-attach-button"
+            testID={testID}
             style={attachButtonStyle}
           >
             {renderAttachButtonIcon}
@@ -299,6 +319,10 @@ function AttachmentDropdown({
         sheetTitle={addAttachmentLabel}
       >
         <AttachmentMenuList items={attachmentMenuItems} />
+        {attachmentMenuItems.length > 0 && actionMenuItems.length > 0 ? (
+          <DropdownMenuSeparator />
+        ) : null}
+        <AttachmentMenuList items={actionMenuItems} />
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -1083,6 +1107,9 @@ interface ResolvedMessageInputProps {
   readOnly: boolean;
   textReplacement: TextReplacement;
   submitLabel: string | undefined;
+  dense: boolean;
+  overflowMenuItems: AttachmentMenuItem[];
+  minInputHeight: number;
 }
 
 function resolveMessageInputProps(props: MessageInputProps): ResolvedMessageInputProps {
@@ -1130,7 +1157,127 @@ function resolveMessageInputProps(props: MessageInputProps): ResolvedMessageInpu
     readOnly: props.readOnly ?? false,
     textReplacement: props.textReplacement,
     submitLabel: props.submitLabel,
+    dense: props.dense ?? false,
+    overflowMenuItems: props.overflowMenuItems ?? EMPTY_MENU_ITEMS,
+    minInputHeight: props.dense ? MIN_INPUT_HEIGHT_DENSE : MIN_INPUT_HEIGHT,
   };
+}
+
+interface OverflowMenu {
+  visible: boolean;
+  attachmentItems: AttachmentMenuItem[];
+  actionItems: AttachmentMenuItem[];
+  label: string;
+  testID: string | undefined;
+}
+
+/**
+ * The attach button's menu. Dense mode turns it into the composer's overflow: dictation and the
+ * caller's `overflowMenuItems` join the attachment items so the row needs no voice buttons.
+ */
+function resolveOverflowMenu(input: {
+  dense: boolean;
+  showAttachments: boolean;
+  showVoice: boolean;
+  attachmentMenuItems: AttachmentMenuItem[];
+  dictationLabel: string;
+  onDictationPress: () => void;
+  isDictationStartEnabled: boolean;
+  overflowMenuItems: AttachmentMenuItem[];
+  t: TFunction;
+}): OverflowMenu {
+  if (!input.dense) {
+    return {
+      visible: input.showAttachments,
+      attachmentItems: input.attachmentMenuItems,
+      actionItems: EMPTY_MENU_ITEMS,
+      label: input.t("composer.input.addAttachment"),
+      testID: undefined,
+    };
+  }
+  const actionItems: AttachmentMenuItem[] = [];
+  if (input.showVoice) {
+    actionItems.push({
+      id: "dictation",
+      label: input.dictationLabel,
+      onSelect: input.onDictationPress,
+      disabled: !input.isDictationStartEnabled,
+      icon: <ThemedMic size={ICON_SIZE.md} uniProps={iconForegroundMutedMapping} />,
+    });
+  }
+  actionItems.push(...input.overflowMenuItems);
+  return {
+    visible: input.showAttachments || actionItems.length > 0,
+    attachmentItems: input.showAttachments ? input.attachmentMenuItems : EMPTY_MENU_ITEMS,
+    actionItems,
+    label: input.t("composer.input.moreActions"),
+    testID: "message-input-overflow-button",
+  };
+}
+
+/**
+ * Places the toolbar slots. The regular layout stacks the text above a two-sided button row;
+ * dense puts everything on one row beside the text and leaves out the voice button, whose
+ * action lives in the overflow menu.
+ */
+function MessageInputBody({
+  dense,
+  children: [
+    textSurface,
+    attachMenu,
+    leftContent,
+    beforeVoiceContent,
+    voiceButton,
+    rightContent,
+    primaryAction,
+  ],
+}: {
+  dense: boolean;
+  /** Text surface, attach menu, left content, before-voice, voice, right content, primary. */
+  children: [
+    React.ReactNode,
+    React.ReactNode,
+    React.ReactNode,
+    React.ReactNode,
+    React.ReactNode,
+    React.ReactNode,
+    React.ReactNode,
+  ];
+}) {
+  if (dense) {
+    return (
+      <View style={styles.denseRow}>
+        <View style={styles.denseTextSlot}>{textSurface}</View>
+        <View style={styles.denseControls}>
+          {leftContent}
+          {beforeVoiceContent}
+          {rightContent}
+          {attachMenu}
+          {primaryAction}
+        </View>
+      </View>
+    );
+  }
+  return (
+    <>
+      {textSurface}
+      {/* Button row */}
+      <View style={styles.buttonRow}>
+        {/* Toolbar left: attachment button + agent controls */}
+        <View style={styles.leftButtonGroup}>
+          {attachMenu}
+          {leftContent}
+        </View>
+        {/* Right: voice button, contextual button (realtime/send/cancel) */}
+        <View style={styles.rightButtonGroup}>
+          {beforeVoiceContent}
+          {voiceButton}
+          {rightContent}
+          {primaryAction}
+        </View>
+      </View>
+    </>
+  );
 }
 
 function extractErrorMessage(error: unknown): string | null {
@@ -1185,6 +1332,9 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       readOnly,
       textReplacement,
       submitLabel,
+      dense,
+      overflowMenuItems,
+      minInputHeight,
     } = resolveMessageInputProps(props);
     const mode = resolveComposerInputMode(inputMode);
     const { t } = useTranslation();
@@ -1215,7 +1365,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
     const composerHeight = useComposerHeight({
       getText: getLiveText,
       textareaRef: webTextareaRef,
-      minHeight: MIN_INPUT_HEIGHT,
+      minHeight: minInputHeight,
       maxHeight: maxInputHeight,
     });
     const { style: composerHeightStyle, scrollEnabled: isComposerScrollEnabled } = composerHeight;
@@ -1723,11 +1873,45 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
     const inputWrapperCombinedStyle = useMemo(
       () => [
         styles.inputWrapper,
+        dense && styles.inputWrapperDense,
+        dense && showOverlay && styles.inputWrapperDenseOverlay,
         readOnly && styles.inputWrapperReadOnly,
         inputWrapperStyle,
         { opacity: surfacePresentation.input.opacity },
       ],
-      [inputWrapperStyle, readOnly, surfacePresentation.input.opacity],
+      [dense, inputWrapperStyle, readOnly, showOverlay, surfacePresentation.input.opacity],
+    );
+    const overflowMenu = useMemo(
+      () =>
+        resolveOverflowMenu({
+          dense,
+          showAttachments: mode.showAttachments,
+          showVoice: mode.showVoice,
+          attachmentMenuItems,
+          dictationLabel: voiceButtonAccessibilityLabel,
+          onDictationPress: handleVoicePress,
+          isDictationStartEnabled,
+          overflowMenuItems,
+          t,
+        }),
+      [
+        attachmentMenuItems,
+        dense,
+        handleVoicePress,
+        isDictationStartEnabled,
+        mode.showAttachments,
+        mode.showVoice,
+        overflowMenuItems,
+        t,
+        voiceButtonAccessibilityLabel,
+      ],
+    );
+    const focusHintLabel = useMemo(
+      () =>
+        t("composer.input.focusHint", {
+          shortcut: focusInputKeys ? formatShortcut(focusInputKeys[0], getShortcutOs()) : "",
+        }),
+      [focusInputKeys, t],
     );
     // `withUnistyles` maps this component's `style` into a `.hash > *` child
     // rule, which ties on specificity with react-native-web's own
@@ -1741,8 +1925,13 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
     // Static content has no textarea to mirror, so it grows with its own text
     // instead of the measured input height.
     const readOnlyTextStyle = useMemo(
-      () => [styles.textInput, mode.isMonospace && styles.textInputMonospace, styles.readOnlyText],
-      [mode.isMonospace],
+      () => [
+        styles.textInput,
+        mode.isMonospace && styles.textInputMonospace,
+        styles.readOnlyText,
+        dense && styles.readOnlyTextDense,
+      ],
+      [dense, mode.isMonospace],
     );
     const sendButtonCombinedStyle = useMemo(
       () => [
@@ -1799,86 +1988,76 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
           pointerEvents={surfacePresentation.input.pointerEvents}
         >
           {attachmentSlot}
-          {/* Text input */}
-          <RenderProfile id="ComposerTextSurface">
-            <ComposerTextSurface
-              readOnly={readOnly}
-              value={value}
-              textInputRef={textInputRef}
-              textInputStyle={textInputStyle}
-              readOnlyTextStyle={readOnlyTextStyle}
-              placeholder={placeholder ?? t("composer.placeholders.fallback")}
-              accessibilityLabel={t(mode.accessibilityLabelKey)}
-              onChangeText={handleInputChange}
-              onFocus={handleInputFocus}
-              onBlur={handleInputBlur}
-              editable={!isDictating && !isRealtimeVoiceForCurrentAgent && !disabled}
-              scrollEnabled={isComposerScrollEnabled}
-              autoFocus={false}
-              onKeyPress={shouldHandleWebKeyPress ? handleDesktopKeyPress : undefined}
-              onSelectionChange={handleSelectionChange}
-              onPasteImages={onPasteImages}
-              onPasteError={handlePasteError}
-              focusHintVisible={isWeb && !isInputFocused && !value}
-              focusInputKeys={focusInputKeys}
-              focusHintLabel={t("composer.input.focusHint", {
-                shortcut: focusInputKeys ? formatShortcut(focusInputKeys[0], getShortcutOs()) : "",
-              })}
+          <MessageInputBody dense={dense}>
+            <RenderProfile id="ComposerTextSurface">
+              <ComposerTextSurface
+                readOnly={readOnly}
+                value={value}
+                textInputRef={textInputRef}
+                textInputStyle={textInputStyle}
+                readOnlyTextStyle={readOnlyTextStyle}
+                placeholder={placeholder ?? t("composer.placeholders.fallback")}
+                accessibilityLabel={t(mode.accessibilityLabelKey)}
+                onChangeText={handleInputChange}
+                onFocus={handleInputFocus}
+                onBlur={handleInputBlur}
+                editable={!isDictating && !isRealtimeVoiceForCurrentAgent && !disabled}
+                scrollEnabled={isComposerScrollEnabled}
+                autoFocus={false}
+                onKeyPress={shouldHandleWebKeyPress ? handleDesktopKeyPress : undefined}
+                onSelectionChange={handleSelectionChange}
+                onPasteImages={onPasteImages}
+                onPasteError={handlePasteError}
+                focusHintVisible={isWeb && !isInputFocused && !value}
+                focusInputKeys={focusInputKeys}
+                focusHintLabel={focusHintLabel}
+              />
+            </RenderProfile>
+            <AttachmentDropdown
+              visible={overflowMenu.visible}
+              isConnected={isConnected}
+              disabled={disabled}
+              attachButtonStyle={attachButtonStyle}
+              renderAttachButtonIcon={renderAttachButtonIcon}
+              attachmentMenuItems={overflowMenu.attachmentItems}
+              actionMenuItems={overflowMenu.actionItems}
+              addAttachmentLabel={overflowMenu.label}
+              testID={overflowMenu.testID}
             />
-          </RenderProfile>
-
-          {/* Button row */}
-          <View style={styles.buttonRow}>
-            {/* Toolbar left: attachment button + agent controls */}
-            <View style={styles.leftButtonGroup}>
-              <AttachmentDropdown
-                visible={mode.showAttachments}
-                isConnected={isConnected}
-                disabled={disabled}
-                attachButtonStyle={attachButtonStyle}
-                renderAttachButtonIcon={renderAttachButtonIcon}
-                attachmentMenuItems={attachmentMenuItems}
-                addAttachmentLabel={t("composer.input.addAttachment")}
-              />
-              {leftContent}
-            </View>
-
-            {/* Right: voice button, contextual button (realtime/send/cancel) */}
-            <View style={styles.rightButtonGroup}>
-              {beforeVoiceContent}
-              <VoiceButtonTooltip
-                visible={mode.showVoice}
-                onVoicePress={handleVoicePress}
-                isDictationStartEnabled={isDictationStartEnabled}
-                voiceButtonAccessibilityLabel={voiceButtonAccessibilityLabel}
-                voiceButtonStyle={voiceButtonStyle}
-                renderVoiceButtonIcon={renderVoiceButtonIcon}
-                voiceTooltipText={voiceTooltipText}
-                isRealtimeVoiceForCurrentAgent={isRealtimeVoiceForCurrentAgent}
-                voiceMuteToggleKeys={voiceMuteToggleKeys}
-                dictationToggleKeys={dictationToggleKeys}
-              />
-              {rightContent}
-              <PrimaryAction
-                kind={primaryActionKind}
-                activeActionContent={activeActionContent}
-                shouldShow
-                canPressLoadingButton={canPressLoadingButton}
-                onSubmitLoadingPress={onSubmitLoadingPress}
-                onDefaultSendAction={handleDefaultSendAction}
-                isSendButtonDisabled={isSendButtonDisabled}
-                submitAccessibilityLabel={submitAccessibilityLabel}
-                sendButtonCombinedStyle={sendButtonCombinedStyle}
-                isSubmitLoading={isSubmitLoading}
-                submitIcon={submitIcon}
-                submitLabel={submitLabel}
-                submitButtonTestID={submitButtonTestID}
-                buttonIconSize={buttonIconSize}
-                sendKeys={DEFAULT_SEND_KEYS}
-                sendTooltipLabel={sendTooltipLabel}
-              />
-            </View>
-          </View>
+            {leftContent}
+            {beforeVoiceContent}
+            <VoiceButtonTooltip
+              visible={mode.showVoice}
+              onVoicePress={handleVoicePress}
+              isDictationStartEnabled={isDictationStartEnabled}
+              voiceButtonAccessibilityLabel={voiceButtonAccessibilityLabel}
+              voiceButtonStyle={voiceButtonStyle}
+              renderVoiceButtonIcon={renderVoiceButtonIcon}
+              voiceTooltipText={voiceTooltipText}
+              isRealtimeVoiceForCurrentAgent={isRealtimeVoiceForCurrentAgent}
+              voiceMuteToggleKeys={voiceMuteToggleKeys}
+              dictationToggleKeys={dictationToggleKeys}
+            />
+            {rightContent}
+            <PrimaryAction
+              kind={primaryActionKind}
+              activeActionContent={activeActionContent}
+              shouldShow
+              canPressLoadingButton={canPressLoadingButton}
+              onSubmitLoadingPress={onSubmitLoadingPress}
+              onDefaultSendAction={handleDefaultSendAction}
+              isSendButtonDisabled={isSendButtonDisabled}
+              submitAccessibilityLabel={submitAccessibilityLabel}
+              sendButtonCombinedStyle={sendButtonCombinedStyle}
+              isSubmitLoading={isSubmitLoading}
+              submitIcon={submitIcon}
+              submitLabel={submitLabel}
+              submitButtonTestID={submitButtonTestID}
+              buttonIconSize={buttonIconSize}
+              sendKeys={DEFAULT_SEND_KEYS}
+              sendTooltipLabel={sendTooltipLabel}
+            />
+          </MessageInputBody>
         </View>
 
         <View
@@ -1942,6 +2121,52 @@ const styles = StyleSheet.create((theme: Theme) => ({
         }
       : {}),
   },
+  // Terminal-dense surface: one flat 28px control row inside a 4px inset, about 38px idle.
+  // Unistyles web emits breakpoint values as media-query rules that outrank a plain override,
+  // so each padding key here repeats the base style's key and breakpoint shape.
+  inputWrapperDense: {
+    gap: theme.spacing[1],
+    borderRadius: theme.borderRadius.md,
+    paddingTop: {
+      xs: theme.spacing[1],
+      md: theme.spacing[1],
+    },
+    paddingBottom: {
+      xs: theme.spacing[1],
+      md: theme.spacing[1],
+    },
+    paddingHorizontal: {
+      xs: theme.spacing[2],
+      md: theme.spacing[2],
+    },
+  },
+  // The dictation and realtime overlays fill the wrapper at FOOTER_HEIGHT; only while shown.
+  inputWrapperDenseOverlay: {
+    minHeight: FOOTER_HEIGHT,
+  },
+  denseRow: {
+    flexShrink: 1,
+    flexDirection: "row",
+    // Controls stay on the last line while a long draft grows upward.
+    alignItems: "flex-end",
+    gap: theme.spacing[1],
+  },
+  denseTextSlot: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 0,
+    minWidth: 120,
+    // Centres the single text line on the 28px controls.
+    paddingVertical: (DENSE_CONTROL_SIZE - MIN_INPUT_HEIGHT_DENSE) / 2,
+  },
+  denseControls: {
+    flexShrink: 1,
+    minWidth: 0,
+    height: DENSE_CONTROL_SIZE,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[1],
+  },
   // Dotted says "this surface is the same box, but there is nothing to type
   // into it" without swapping the border colour, which reads as an error state.
   inputWrapperReadOnly: {
@@ -1985,6 +2210,9 @@ const styles = StyleSheet.create((theme: Theme) => ({
   readOnlyText: {
     minHeight: MIN_INPUT_HEIGHT,
     color: theme.colors.foregroundMuted,
+  },
+  readOnlyTextDense: {
+    minHeight: MIN_INPUT_HEIGHT_DENSE,
   },
   buttonRow: {
     flexShrink: 0,

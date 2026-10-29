@@ -3036,6 +3036,7 @@ interface ToolCallProps {
   onInlineDetailsExpandedChange?: (expanded: boolean) => void;
   onOpenFilePath?: (filePath: string) => void;
   defaultExpanded?: boolean;
+  concise?: boolean;
   forceInline?: boolean;
   maxDetailHeight?: number;
 }
@@ -3055,9 +3056,11 @@ export const ToolCall = memo(function ToolCall({
   onInlineDetailsExpandedChange,
   onOpenFilePath,
   defaultExpanded,
+  concise = false,
   forceInline = false,
   maxDetailHeight = 400,
 }: ToolCallProps) {
+  const { t } = useTranslation();
   const { openToolCall } = useToolCallSheet();
   const [isExpanded, setIsExpanded] = useState(defaultExpanded ?? false);
 
@@ -3184,18 +3187,24 @@ export const ToolCall = memo(function ToolCall({
     );
   }
 
+  const needsAttention = status === "failed" || status === "canceled" || error != null;
+  let secondaryLabel = presentation.summary;
+  if (concise) {
+    secondaryLabel = needsAttention ? t("toolCallGroup.needsAttention") : undefined;
+  }
+
   return (
     <ExpandableBadge
       testID="tool-call-badge"
       label={presentation.displayName}
-      secondaryLabel={presentation.summary}
+      secondaryLabel={secondaryLabel}
       icon={presentation.icon}
       isExpanded={shouldRenderInline && isExpanded}
       onToggle={presentation.canOpenDetails ? handleToggle : undefined}
       onOpenFile={handleOpenFile}
       renderDetails={presentation.canOpenDetails && shouldRenderInline ? renderDetails : undefined}
       isLoading={status === "running" || status === "executing"}
-      isError={status === "failed"}
+      isError={concise ? needsAttention : status === "failed"}
       isLastInSequence={isLastInSequence}
       disableOuterSpacing={disableOuterSpacing}
       onDetailHoverChange={onInlineDetailsHoverChange}
@@ -3216,6 +3225,7 @@ function areToolCallPropsEqual(previous: ToolCallProps, next: ToolCallProps) {
   if (previous.disableOuterSpacing !== next.disableOuterSpacing) return false;
   if (previous.onOpenFilePath !== next.onOpenFilePath) return false;
   if (previous.defaultExpanded !== next.defaultExpanded) return false;
+  if (previous.concise !== next.concise) return false;
   if (previous.forceInline !== next.forceInline) return false;
   if (previous.maxDetailHeight !== next.maxDetailHeight) return false;
   return true;

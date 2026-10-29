@@ -125,6 +125,7 @@ export const ko: TranslationResources = {
       terminalAccessibilityLabel: "Terminal prompt",
       focusHint: "{{shortcut}}로 포커스",
       addAttachment: "첨부 추가",
+      moreActions: "첨부, 받아쓰기 또는 음성 시작",
       interruptAgent: "에이전트 중단",
       queueMessage: "메시지 대기열에 추가",
       sendAndInterrupt: "보내고 중단",
@@ -2003,6 +2004,7 @@ export const ko: TranslationResources = {
       other: "Paseo를 {{count}}회 호출함",
     },
     and: "그리고",
+    needsAttention: "실패했거나 취소된 도구",
   },
   renameModal: {
     rename: "이름 변경",
@@ -2265,6 +2267,10 @@ export const ko: TranslationResources = {
       chatOutline: {
         title: "채팅 개요",
         description: "프롬프트 사이를 이동하기 위한 개요 표시",
+      },
+      compactChatLayout: {
+        title: "컴팩트 채팅",
+        description: "창 너비 전체를 사용하고 메시지를 더 촘촘하게, 입력창을 더 얇게 표시",
       },
       sidebar: {
         header: {

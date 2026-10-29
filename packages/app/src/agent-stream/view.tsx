@@ -56,6 +56,7 @@ import { useRevealedText } from "@/hooks/use-revealed-text";
 import { useFileExplorerActions } from "@/hooks/use-file-explorer-actions";
 import { useLoadOlderAgentHistory } from "@/hooks/use-load-older-agent-history";
 import { resolveContentMaxWidth, useSettings } from "@/hooks/use-settings";
+import { useCompactChatLayout } from "@/hooks/use-compact-chat-layout";
 import type { ToastApi } from "@/components/toast-host";
 import { returnToTimelineTail } from "./timeline-tail-navigation";
 import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
@@ -113,6 +114,7 @@ function renderLiveAuxiliaryNode(input: {
   pendingPermissions: ReactNode;
   turnFooter: ReactNode;
   bottomOverlayInset: number;
+  compact: boolean;
 }): ReactNode {
   if (!input.pendingPermissions && !input.turnFooter && input.bottomOverlayInset === 0) {
     return null;
@@ -121,7 +123,7 @@ function renderLiveAuxiliaryNode(input: {
     <>
       {input.turnFooter}
       {input.pendingPermissions ? (
-        <View style={stylesheet.contentWrapper}>
+        <View style={[stylesheet.contentWrapper, input.compact && stylesheet.fullWidth]}>
           <View style={stylesheet.listHeaderContent}>{input.pendingPermissions}</View>
         </View>
       ) : null}
@@ -350,6 +352,7 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
     const { t } = useTranslation();
     const autoExpandReasoning = useSettings((settings) => settings.autoExpandReasoning);
     const toolCallDetailLevel = useSettings((settings) => settings.toolCallDetailLevel);
+    const compactChatLayout = useCompactChatLayout();
     const chatOutlineEnabled = useSettings((settings) => settings.chatOutlineEnabled);
     const contentMaxWidth = useSettings(resolveContentMaxWidth);
     const viewportRef = useRef<StreamViewportHandle | null>(null);
@@ -552,6 +555,7 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
           transform: transformTimelineItem,
           level: toolCallDetailLevel,
           isTurnActive,
+          compact: compactChatLayout,
         }),
       [
         presentStream,
@@ -560,6 +564,7 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
         transformTimelineItem,
         toolCallDetailLevel,
         isTurnActive,
+        compactChatLayout,
       ],
     );
     const {
@@ -761,11 +766,12 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
             text={item.text}
             status={item.status}
             isLastInSequence={layoutItem.isLastInToolSequence}
-            defaultExpanded={autoExpandReasoning}
+            defaultExpanded={!compactChatLayout && autoExpandReasoning}
+            concise={compactChatLayout}
           />
         );
       },
-      [autoExpandReasoning, setInlineDetailsExpanded],
+      [autoExpandReasoning, compactChatLayout, setInlineDetailsExpanded],
     );
 
     const renderSingleToolCallItem = useCallback(
@@ -803,6 +809,7 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
               isLastInSequence={isLastInSequence}
               onOpenFilePath={handleToolCallOpenFile}
               maxDetailHeight={maxDetailHeight}
+              concise={compactChatLayout}
             />
           );
         }
@@ -815,14 +822,16 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
             toolName={data.toolName}
             args={data.arguments}
             result={data.result}
+            error={compactChatLayout ? data.error : undefined}
             status={data.status}
             isLastInSequence={isLastInSequence}
             onOpenFilePath={handleToolCallOpenFile}
             maxDetailHeight={maxDetailHeight}
+            concise={compactChatLayout}
           />
         );
       },
-      [context.cwd, setInlineDetailsExpanded, handleToolCallOpenFile],
+      [context.cwd, setInlineDetailsExpanded, handleToolCallOpenFile, compactChatLayout],
     );
 
     // Read through a stable event so live group updates do not change the renderer identity
@@ -836,30 +845,47 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
         if (!group) {
           return renderSingleToolCallItem(item, layoutItem.isLastInToolSequence);
         }
-        const expanded = expandedToolCallGroupIds.has(group.run.id);
+        const expanded =
+          (compactChatLayout && !group.run.isSealed) || expandedToolCallGroupIds.has(group.run.id);
         return (
           <OverviewToolCallGroupView
             group={group}
             expanded={expanded}
             isLastInSequence={layoutItem.isLastInToolSequence}
+            compact={compactChatLayout}
             onExpandedChange={setToolCallGroupExpanded}
           >
             {expanded
-              ? group.run.calls.map((call, index) => (
-                  <React.Fragment key={call.id}>
-                    {renderSingleToolCallItem(
-                      call,
-                      index === group.run.calls.length - 1,
-                      GROUPED_TOOL_CALL_DETAIL_MAX_HEIGHT,
-                    )}
-                  </React.Fragment>
-                ))
+              ? group.run.items.map((entry, index) => {
+                  const isLast = index === group.run.items.length - 1;
+                  if (entry.kind === "thought") {
+                    return (
+                      <ThoughtSlot
+                        key={entry.id}
+                        itemId={entry.id}
+                        onInlineDetailsExpandedChangeByItemId={setInlineDetailsExpanded}
+                        text={entry.text}
+                        status={entry.status}
+                        isLastInSequence={isLast}
+                        defaultExpanded={false}
+                        concise
+                      />
+                    );
+                  }
+                  return (
+                    <React.Fragment key={entry.id}>
+                      {renderSingleToolCallItem(entry, isLast, GROUPED_TOOL_CALL_DETAIL_MAX_HEIGHT)}
+                    </React.Fragment>
+                  );
+                })
               : null}
           </OverviewToolCallGroupView>
         );
       },
       [
         expandedToolCallGroupIds,
+        compactChatLayout,
+        setInlineDetailsExpanded,
         getToolCallGroup,
         renderSingleToolCallItem,
         setToolCallGroupExpanded,
@@ -986,7 +1012,18 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
       };
     }, [baseRenderModel, pendingPermissionsNode, turnFooterNode]);
 
-    const emptyStateStyle = useMemo(() => [stylesheet.emptyState, stylesheet.contentWrapper], []);
+    const emptyStateStyle = useMemo(
+      () => [
+        stylesheet.emptyState,
+        stylesheet.contentWrapper,
+        compactChatLayout && stylesheet.fullWidth,
+      ],
+      [compactChatLayout],
+    );
+    const listContentStyle = useMemo(
+      () => [stylesheet.listContentContainer, compactChatLayout && stylesheet.compactListContent],
+      [compactChatLayout],
+    );
     const scrollToBottomContainerStyle = useMemo(
       () => [
         stylesheet.scrollToBottomContainer,
@@ -1070,8 +1107,14 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
         pendingPermissions: auxiliary.pendingPermissions,
         turnFooter: auxiliary.turnFooter,
         bottomOverlayInset,
+        compact: compactChatLayout,
       });
-    }, [auxiliary.pendingPermissions, auxiliary.turnFooter, bottomOverlayTailClearance]);
+    }, [
+      auxiliary.pendingPermissions,
+      auxiliary.turnFooter,
+      bottomOverlayTailClearance,
+      compactChatLayout,
+    ]);
 
     const renderers = useMemo<StreamSegmentRenderers>(
       () => ({
@@ -1095,9 +1138,14 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
       () => ({
         contentById: presentation.historyGroupUpdatesByHostId,
         displayStateById: expandedToolCallGroupIds,
-        globalDisplayState: isMobile,
+        globalDisplayState: isMobile || compactChatLayout,
       }),
-      [expandedToolCallGroupIds, isMobile, presentation.historyGroupUpdatesByHostId],
+      [
+        expandedToolCallGroupIds,
+        isMobile,
+        compactChatLayout,
+        presentation.historyGroupUpdatesByHostId,
+      ],
     );
 
     const findItems = useMemo(
@@ -1137,7 +1185,7 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
                 olderHistoryProgressKey: progressKey,
                 scrollEnabled: streamScrollEnabled,
                 listStyle: stylesheet.list,
-                baseListContentContainerStyle: stylesheet.listContentContainer,
+                baseListContentContainerStyle: listContentStyle,
                 forwardListContentContainerStyle: stylesheet.forwardListContentContainer,
                 contentMaxWidth,
                 imageContext: { serverId: resolvedServerId, workspaceRoot },
@@ -1308,6 +1356,7 @@ interface ThoughtSlotProps {
   status: Extract<StreamItem, { kind: "thought" }>["status"];
   isLastInSequence: boolean;
   defaultExpanded: boolean;
+  concise?: boolean;
 }
 
 // Reasoning text is paced the same way assistant text is; see @/hooks/use-revealed-text.
@@ -1318,6 +1367,7 @@ function ThoughtSlot({
   status,
   isLastInSequence,
   defaultExpanded,
+  concise = false,
 }: ThoughtSlotProps) {
   const revealedText = useRevealedText(text, status === "ready" ? "complete" : "streaming");
   return (
@@ -1330,6 +1380,7 @@ function ThoughtSlot({
       isLastInSequence={isLastInSequence}
       defaultExpanded={defaultExpanded}
       forceInline={defaultExpanded}
+      concise={concise}
     />
   );
 }
@@ -1638,6 +1689,12 @@ const stylesheet = StyleSheet.create((theme) => ({
     alignSelf: "center",
     paddingHorizontal: theme.spacing[2],
   },
+  fullWidth: {
+    maxWidth: "100%",
+  },
+  compactListContent: {
+    paddingHorizontal: 0,
+  },
   listContentContainer: {
     paddingVertical: 0,
     flexGrow: 1,
@@ -1790,9 +1847,14 @@ interface StreamItemWrapperProps {
 }
 
 function StreamItemWrapper({ gapBelow, children }: StreamItemWrapperProps) {
+  const compact = useCompactChatLayout();
   const wrapperStyle = useMemo(
-    () => [stylesheet.streamItemWrapper, { marginBottom: gapBelow }],
-    [gapBelow],
+    () => [
+      stylesheet.streamItemWrapper,
+      compact && stylesheet.fullWidth,
+      { marginBottom: gapBelow },
+    ],
+    [gapBelow, compact],
   );
   return <View style={wrapperStyle}>{children}</View>;
 }

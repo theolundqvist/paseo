@@ -126,6 +126,7 @@ export const ja: TranslationResources = {
       terminalAccessibilityLabel: "Terminal prompt",
       focusHint: "{{shortcut}}でフォーカス",
       addAttachment: "添付ファイルを追加",
+      moreActions: "添付、音声入力、音声モード",
       interruptAgent: "エージェントを中断",
       queueMessage: "メッセージをキューに追加",
       sendAndInterrupt: "送信して中断",
@@ -2013,6 +2014,7 @@ export const ja: TranslationResources = {
       other: "Paseoを{{count}}回呼び出し",
     },
     and: "および",
+    needsAttention: "失敗またはキャンセルされたツール",
   },
   renameModal: {
     rename: "名前を変更",
@@ -2273,6 +2275,10 @@ export const ja: TranslationResources = {
       chatOutline: {
         title: "チャットのアウトライン",
         description: "プロンプト間を移動するためのアウトラインを表示します",
+      },
+      compactChatLayout: {
+        title: "コンパクトなチャット",
+        description: "ペインの幅いっぱいに、密度の高いメッセージと細い入力欄で表示します",
       },
       sidebar: {
         header: {

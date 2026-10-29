@@ -41,6 +41,10 @@ export function ChatSection() {
     (chatOutlineEnabled: boolean) => void updateSettings({ chatOutlineEnabled }),
     [updateSettings],
   );
+  const changeCompactChatLayout = useCallback(
+    (compactChatLayout: boolean) => void updateSettings({ compactChatLayout }),
+    [updateSettings],
+  );
 
   return (
     <View>
@@ -65,6 +69,14 @@ export function ChatSection() {
               hint={t("settings.appearance.chatOutline.description")}
               value={settings.chatOutlineEnabled}
               onValueChange={changeChatOutline}
+            />
+          )}
+          {isNative ? null : (
+            <SettingsSwitch
+              label={t("settings.appearance.compactChatLayout.title")}
+              hint={t("settings.appearance.compactChatLayout.description")}
+              value={settings.compactChatLayout}
+              onValueChange={changeCompactChatLayout}
             />
           )}
         </SettingsCard>
