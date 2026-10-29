@@ -121,6 +121,7 @@ export const en = {
       terminalAccessibilityLabel: "Terminal prompt",
       focusHint: "{{shortcut}} to focus",
       addAttachment: "Add attachment",
+      moreActions: "Attach, dictate, or start voice",
       interruptAgent: "Interrupt agent",
       queueMessage: "Queue message",
       sendAndInterrupt: "Send and interrupt",
@@ -2018,6 +2019,7 @@ export const en = {
       other: "called Paseo {{count}} times",
     },
     and: "and",
+    needsAttention: "Failed or canceled tools",
   },
   renameModal: {
     rename: "Rename",
@@ -2378,6 +2380,10 @@ export const en = {
       chatOutline: {
         title: "Chat outline",
         description: "Show an outline for jumping between prompts",
+      },
+      compactChatLayout: {
+        title: "Compact chat",
+        description: "Use the full pane width with denser messages and a slimmer composer",
       },
       sidebar: {
         header: {

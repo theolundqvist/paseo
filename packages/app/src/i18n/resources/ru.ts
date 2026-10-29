@@ -126,6 +126,7 @@ export const ru: TranslationResources = {
       terminalAccessibilityLabel: "Terminal prompt",
       focusHint: "{{shortcut}}, для фокуса",
       addAttachment: "Добавить вложение",
+      moreActions: "Вложить, диктовать или включить голос",
       interruptAgent: "Прервать агента",
       queueMessage: "Сообщение в очередь",
       sendAndInterrupt: "Отправить и прервать",
@@ -2026,6 +2027,7 @@ export const ru: TranslationResources = {
       other: "выполнены вызовы Paseo ({{count}})",
     },
     and: "и",
+    needsAttention: "Инструменты с ошибкой или отменённые",
   },
   renameModal: {
     rename: "Переименовать",
@@ -2292,6 +2294,10 @@ export const ru: TranslationResources = {
       chatOutline: {
         title: "Оглавление чата",
         description: "Показывать оглавление для перехода между запросами",
+      },
+      compactChatLayout: {
+        title: "Компактный чат",
+        description: "Использовать всю ширину панели, более плотные сообщения и узкое поле ввода",
       },
       sidebar: {
         header: {

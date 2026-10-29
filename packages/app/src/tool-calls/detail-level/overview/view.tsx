@@ -1,5 +1,5 @@
 import React, { memo, useCallback, useMemo, useRef, type ReactNode } from "react";
-import { ScrollView } from "react-native";
+import { ScrollView, View } from "react-native";
 import { useTranslation } from "react-i18next";
 import { Wrench } from "lucide-react-native";
 import { StyleSheet } from "react-native-unistyles";
@@ -7,11 +7,13 @@ import { ExpandableBadge } from "@/components/message";
 import { useIsCompactFormFactor } from "@/constants/layout";
 import { type OverviewSummary, type OverviewToolCallGroup } from "./model";
 import { OverviewToolCallGroupSheet } from "./sheet";
+import { describeToolCall } from "../grouping";
 
 interface OverviewGroupProps {
   group: OverviewToolCallGroup;
   expanded: boolean;
   isLastInSequence: boolean;
+  compact?: boolean;
   onExpandedChange: (groupId: string, expanded: boolean) => void;
   children: ReactNode;
 }
@@ -57,12 +59,23 @@ export const OverviewToolCallGroupView = memo(function OverviewToolCallGroupView
   group,
   expanded,
   isLastInSequence,
+  compact = false,
   onExpandedChange,
   children,
 }: OverviewGroupProps) {
+  const { t } = useTranslation();
   const scrollRef = useRef<ScrollView>(null);
   const isCompact = useIsCompactFormFactor();
   const aggregateSummary = useOverviewSummary(group.summary);
+  const hasErrors = useMemo(
+    () =>
+      compact &&
+      group.run.calls.some((call) => {
+        const { status, error } = describeToolCall(call);
+        return status === "failed" || status === "canceled" || error != null;
+      }),
+    [compact, group.run.calls],
+  );
   const scrollToLatest = useCallback(() => {
     scrollRef.current?.scrollToEnd({ animated: false });
   }, []);
@@ -72,8 +85,9 @@ export const OverviewToolCallGroupView = memo(function OverviewToolCallGroupView
   const close = useCallback(() => {
     onExpandedChange(group.run.id, false);
   }, [group.run.id, onExpandedChange]);
-  const renderDetails = useCallback(
-    () => (
+  const renderDetails = useCallback(() => {
+    if (compact) return <View style={styles.content}>{children}</View>;
+    return (
       <ScrollView
         ref={scrollRef}
         style={styles.scroll}
@@ -84,9 +98,12 @@ export const OverviewToolCallGroupView = memo(function OverviewToolCallGroupView
       >
         {children}
       </ScrollView>
-    ),
-    [children, scrollToLatest],
-  );
+    );
+  }, [children, compact, scrollToLatest]);
+
+  if (compact && !group.run.isSealed) {
+    return <View testID="tool-call-current-list">{children}</View>;
+  }
 
   if (isCompact) {
     return (
@@ -111,8 +128,10 @@ export const OverviewToolCallGroupView = memo(function OverviewToolCallGroupView
     <ExpandableBadge
       testID="tool-call-group"
       label={aggregateSummary}
+      secondaryLabel={hasErrors ? t("toolCallGroup.needsAttention") : undefined}
       icon={Wrench}
       isLoading={group.isLoading}
+      isError={hasErrors}
       isExpanded={expanded}
       isLastInSequence={isLastInSequence}
       onToggle={toggle}

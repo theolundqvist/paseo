@@ -579,4 +579,112 @@ describe("timeline presentation", () => {
     ]);
     expect(projectTimelineItems([source], () => [])).toEqual([]);
   });
+
+  it("preserves a compact group host while pagination prepends into its run", () => {
+    const presentCompact = createStreamPresentation();
+    const older = toolCall("older", "read");
+    const visible = toolCall("visible", "shell");
+    const latest = toolCall("latest", "read");
+    const answer = assistantMessage("answer", 4);
+    const options = {
+      level: "detailed" as const,
+      compact: true,
+      isTurnActive: false,
+      transform: undefined,
+    };
+    const initial = presentCompact({ ...options, tail: [visible, latest, answer], head: [] });
+    const expandedIds = new Set([visible.id]);
+    const paginated = presentCompact({
+      ...options,
+      tail: [userMessage("question", 1), older, visible, latest, answer],
+      head: [],
+    });
+    const group = paginated.groupsByHostId.get(visible.id);
+
+    expect(initial.groupsByHostId.get(visible.id)?.run.isSealed).toBe(true);
+    expect(group?.run).toMatchObject({
+      id: visible.id,
+      calls: [older, visible, latest],
+      isSealed: true,
+    });
+    expect(expandedIds.has(group!.run.id)).toBe(true);
+    expect(paginated.tail.map((item) => item.id)).toEqual([
+      "question",
+      visible.id,
+      "answer:block:0",
+    ]);
+  });
+
+  it("keeps compact run identity and history models through live updates and promotion", () => {
+    const presentCompact = createStreamPresentation();
+    const historical = toolCall("historical", "read");
+    const boundary = assistantMessage("boundary", 1);
+    const first = toolCall("first", "shell");
+    const second = toolCall("second", "read");
+    const tail = [historical, boundary, first];
+    const options = {
+      level: "detailed" as const,
+      compact: true,
+      isTurnActive: true,
+      transform: undefined,
+    };
+    const initial = presentCompact({ ...options, tail, head: [] });
+    const growing = presentCompact({ ...options, tail, head: [second] });
+    const idle = presentCompact({
+      ...options,
+      tail: [...tail, second],
+      head: [],
+      isTurnActive: false,
+    });
+    const sealed = presentCompact({
+      ...options,
+      tail: [...tail, second],
+      head: [assistantMessage("answer", 2)],
+    });
+
+    expect(growing.groupsByHostId.get(historical.id)).toBe(
+      initial.groupsByHostId.get(historical.id),
+    );
+    expect(growing.groupsByHostId.get(first.id)?.run.calls).toEqual([first, second]);
+    expect(growing.historyGroupUpdatesByHostId.has(first.id)).toBe(true);
+    expect(idle.groupsByHostId.get(first.id)?.run.isSealed).toBe(false);
+    expect(sealed.groupsByHostId.get(first.id)?.run.isSealed).toBe(true);
+    expect(idle.tail.map((item) => item.id)).toEqual(growing.tail.map((item) => item.id));
+  });
+
+  it("does not reuse one compact group ID when previously blank prose splits the run", () => {
+    const presentCompact = createStreamPresentation();
+    const first = toolCall("first", "shell");
+    const second = toolCall("second", "read");
+    const boundary = assistantMessage("boundary", 1);
+    const options = {
+      level: "detailed" as const,
+      compact: true,
+      isTurnActive: true,
+      transform: undefined,
+      head: [],
+    };
+    presentCompact({ ...options, tail: [first, { ...boundary, text: "" }, second] });
+    const split = presentCompact({ ...options, tail: [first, boundary, second] });
+
+    expect(split.groupsByHostId.size).toBe(2);
+    expect(split.groupsByHostId.get(first.id)?.run.calls).toEqual([first]);
+    expect(split.groupsByHostId.get(second.id)?.run.calls).toEqual([second]);
+  });
+
+  it("restores the saved detail mode when compact chat is disabled", () => {
+    const presentCompact = createStreamPresentation();
+    const tail = [toolCall("first", "shell"), toolCall("second", "read")];
+    const options = {
+      level: "detailed" as const,
+      isTurnActive: false,
+      transform: undefined,
+      tail,
+      head: [],
+    };
+    expect(presentCompact({ ...options, compact: true }).groupsByHostId.size).toBe(1);
+    const regular = presentCompact({ ...options, compact: false });
+    expect(regular.groupsByHostId.size).toBe(0);
+    expect(regular.tail).toEqual(tail);
+  });
 });

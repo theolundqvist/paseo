@@ -19,6 +19,7 @@ import type { TurnFooterHost } from "./layout";
 import { AssistantForkMenu } from "@/components/assistant-fork-menu";
 import { SyncedLoader } from "@/components/synced-loader";
 import { useRetainedPanelActive } from "@/components/retained-panel";
+import { useCompactChatLayout } from "@/hooks/use-compact-chat-layout";
 
 const ThemedSyncedLoader = withUnistyles(SyncedLoader);
 const workingIndicatorColorMapping = (theme: Theme) => ({ color: theme.colors.foreground });
@@ -207,7 +208,11 @@ function CompletedTurnFooter({
 }
 
 function TurnFooterRow({ children }: { children: ReactNode }) {
-  const rowStyle = useMemo(() => [stylesheet.streamItemWrapper, stylesheet.turnFooterRow], []);
+  const compact = useCompactChatLayout();
+  const rowStyle = useMemo(
+    () => [stylesheet.streamItemWrapper, compact && stylesheet.fullWidth, stylesheet.turnFooterRow],
+    [compact],
+  );
   return <View style={rowStyle}>{children}</View>;
 }
 
@@ -217,6 +222,9 @@ const stylesheet = StyleSheet.create((theme) => ({
     maxWidth: theme.contentMaxWidth,
     alignSelf: "center",
     paddingHorizontal: theme.spacing[2],
+  },
+  fullWidth: {
+    maxWidth: "100%",
   },
   turnFooterRow: {
     marginTop: theme.spacing[2] + 5,
