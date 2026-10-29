@@ -2424,6 +2424,7 @@ function ComposerContentImpl({
               {/* MessageInput handles everything: text, dictation, attachments, all buttons */}
               <RenderProfile id="MessageInput">
                 <StableMessageInput
+                  key={dense ? "dense" : "regular"}
                   ref={messageInputRef}
                   value={textSource.getSnapshot()}
                   onChangeText={setUserInput}

@@ -2147,6 +2147,7 @@ const styles = StyleSheet.create((theme: Theme) => ({
   denseRow: {
     flexShrink: 1,
     flexDirection: "row",
+    flexWrap: "wrap",
     // Controls stay on the last line while a long draft grows upward.
     alignItems: "flex-end",
     gap: theme.spacing[1],
@@ -2154,7 +2155,7 @@ const styles = StyleSheet.create((theme: Theme) => ({
   denseTextSlot: {
     flexGrow: 1,
     flexShrink: 1,
-    flexBasis: 0,
+    flexBasis: 240,
     minWidth: 120,
     // Centres the single text line on the 28px controls.
     paddingVertical: (DENSE_CONTROL_SIZE - MIN_INPUT_HEIGHT_DENSE) / 2,
@@ -2162,6 +2163,7 @@ const styles = StyleSheet.create((theme: Theme) => ({
   denseControls: {
     flexShrink: 1,
     minWidth: 0,
+    marginLeft: "auto",
     height: DENSE_CONTROL_SIZE,
     flexDirection: "row",
     alignItems: "center",

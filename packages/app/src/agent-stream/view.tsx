@@ -1020,10 +1020,6 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
       ],
       [compactChatLayout],
     );
-    const listContentStyle = useMemo(
-      () => [stylesheet.listContentContainer, compactChatLayout && stylesheet.compactListContent],
-      [compactChatLayout],
-    );
     const scrollToBottomContainerStyle = useMemo(
       () => [
         stylesheet.scrollToBottomContainer,
@@ -1185,7 +1181,7 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
                 olderHistoryProgressKey: progressKey,
                 scrollEnabled: streamScrollEnabled,
                 listStyle: stylesheet.list,
-                baseListContentContainerStyle: listContentStyle,
+                baseListContentContainerStyle: stylesheet.listContentContainer,
                 forwardListContentContainerStyle: stylesheet.forwardListContentContainer,
                 contentMaxWidth,
                 imageContext: { serverId: resolvedServerId, workspaceRoot },
@@ -1691,9 +1687,6 @@ const stylesheet = StyleSheet.create((theme) => ({
   },
   fullWidth: {
     maxWidth: "100%",
-  },
-  compactListContent: {
-    paddingHorizontal: 0,
   },
   listContentContainer: {
     paddingVertical: 0,

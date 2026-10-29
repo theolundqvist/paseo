@@ -3060,7 +3060,6 @@ export const ToolCall = memo(function ToolCall({
   forceInline = false,
   maxDetailHeight = 400,
 }: ToolCallProps) {
-  const { t } = useTranslation();
   const { openToolCall } = useToolCallSheet();
   const [isExpanded, setIsExpanded] = useState(defaultExpanded ?? false);
 
@@ -3188,10 +3187,7 @@ export const ToolCall = memo(function ToolCall({
   }
 
   const needsAttention = status === "failed" || status === "canceled" || error != null;
-  let secondaryLabel = presentation.summary;
-  if (concise) {
-    secondaryLabel = needsAttention ? t("toolCallGroup.needsAttention") : undefined;
-  }
+  const secondaryLabel = concise ? undefined : presentation.summary;
 
   return (
     <ExpandableBadge
